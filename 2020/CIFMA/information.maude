@@ -1,0 +1,39 @@
+load real-time-maude.maude
+
+(tomod INFORMATION is
+  protecting NAT .
+  protecting STRING .
+  
+  sorts Fact Question BasicItem Item BasicItemSet ItemSet EmptyItemSet .
+  subsorts Fact Question < BasicItem < Item .        
+  subsort BasicItem < BasicItemSet .
+  subsorts EmptyItemSet < BasicItemSet < ItemSet .
+  subsort Item < ItemSet .
+  op none : -> EmptyItemSet [ctor] .
+  op _;_ : BasicItemSet BasicItemSet -> BasicItemSet
+                      [ctor assoc comm id: none format (b o n b)] .
+  op _;_ : ItemSet ItemSet -> ItemSet [ctor ditto] .
+  op _;_ : EmptyItemSet EmptyItemSet -> EmptyItemSet [ctor ditto] .
+  
+  sorts Category Attribute TypedAttribute .
+  subsort String < Category < Attribute .
+  ops can_ is`a_ has_ : Attribute -> TypedAttribute [ctor] .
+  ops cannot_ is`not`a_ has`not_ : Attribute -> TypedAttribute [ctor] .
+  op what`can`a_do? : Category -> Question [ctor] .
+  ops can`a__? is`a_a_? has`a__? : Category Attribute -> Question [ctor] .
+  op a__ : Category TypedAttribute -> Fact [ctor] .
+  ops I`dont`know`if`a_can_ I`dont`know`if`a_is_ : Category Attribute -> Fact [ctor] .
+  op I`dont`know`what`a_can`do : Category -> Fact [ctor] .
+  op _is`negative`of_ : TypedAttribute TypedAttribute -> Bool .
+  
+  var A : Attribute .   vars TA1 TA2 : TypedAttribute .
+  eq (cannot A) is negative of (can A) = true .
+  eq (is not a A) is negative of (is a A) = true .
+  eq (has not A) is negative of (has A) = true .
+  eq TA1 is negative of TA2 = false [owise] .
+  
+  op isItemIn : Item ItemSet -> Bool .
+  vars I1 I2 : Item .   var IS : ItemSet .
+  eq isItemIn(I1, I2 ; IS) = if I1 == I2 then true else isItemIn(I1, IS) fi .
+  eq isItemIn(I1, none) = false .
+endtom)
