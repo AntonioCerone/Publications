@@ -1,0 +1,12 @@
+---load timed-information.maude
+load timed-information.maude
+
+(tomod HUMAN-MEMORY is
+
+  including SEMANTIC-MEMORY .
+  including TIMED-INFORMATION .
+
+  class Human | shortTermMem : TimedItemSet,
+                semanticMem : SemanticMemory .
+
+endtom)

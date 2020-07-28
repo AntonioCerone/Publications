@@ -1,0 +1,19 @@
+---load timed-information.maude
+
+load human-memory.maude
+
+(tomod ENVIRONMENT is
+
+  including TIMED-INFORMATION .
+
+  sorts Perception .
+  subsort Perception < Msg .
+  op perc : TimedBasicItem -> Perception [ctor] .
+  var BI : BasicItem .  
+  eq perc(BI for 0) = none .
+
+  sorts Experiment .
+  subsorts Experiment < Msg .
+  op exp : FutureBasicItem -> Experiment [ctor] .
+
+endtom)
