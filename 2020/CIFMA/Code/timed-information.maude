@@ -1,0 +1,26 @@
+load semantic-memory.maude
+
+(tomod TIMED-INFORMATION is
+   protecting INFORMATION .
+   protecting NAT-TIME-DOMAIN-WITH-INF .
+
+   sorts TimedItem TimedItemSet TimedBasicItem FutureBasicItem .
+   subsort TimedItem < TimedItemSet .
+   
+   op _<`decay_> : Item TimeInf -> TimedItem [ctor] .
+   op _for_ : BasicItem TimeInf -> TimedBasicItem [ctor] .
+   op _in_ : TimedBasicItem Time -> FutureBasicItem [ctor] .
+   op emptyTIS : -> TimedItemSet [ctor] .
+   op _;_ : TimedItemSet TimedItemSet -> TimedItemSet
+                   [ctor assoc comm id: emptyTIS format (b o n b)] .
+   eq ITEM:Item < decay 0 > = emptyTIS .
+
+   op removeTime : TimedItemSet -> ItemSet .
+   var I : Item .
+   var TIS : TimedItemSet .
+   var T : TimeInf .  
+   eq removeTime(emptyTIS) = none .
+   eq removeTime((I < decay T >) ; TIS) =  I ; removeTime(TIS) .
+   
+   ops DECAY-TIME MAX-RETRIEVAL-TIME : -> TimeInf .
+endtom)
