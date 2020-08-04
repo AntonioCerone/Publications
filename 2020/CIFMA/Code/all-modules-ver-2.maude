@@ -1,0 +1,359 @@
+load real-time-maude.maude
+
+(tomod INFORMATION is
+  protecting NAT .
+  protecting STRING .
+  
+  sorts Fact Question BasicItem Item BasicItemSet ItemSet EmptyItemSet .
+  subsorts Fact Question < BasicItem < Item .        
+  subsort BasicItem < BasicItemSet .
+  subsorts EmptyItemSet < BasicItemSet < ItemSet .
+  subsort Item < ItemSet .
+  op none : -> EmptyItemSet [ctor] .
+  op _;_ : BasicItemSet BasicItemSet -> BasicItemSet
+                      [ctor assoc comm id: none format (b o n b)] .
+  op _;_ : ItemSet ItemSet -> ItemSet [ctor ditto] .
+  op _;_ : EmptyItemSet EmptyItemSet -> EmptyItemSet [ctor ditto] .
+  
+  sorts Category Attribute TypedAttribute .
+  subsort String < Category < Attribute .
+  ops can_ is`a_ has_ : Attribute -> TypedAttribute [ctor] .
+  ops cannot_ is`not`a_ has`not_ : Attribute -> TypedAttribute [ctor] .
+  op what`can`a_do? : Category -> Question [ctor] .
+  ops can`a__? is`a_a_? has`a__? : Category Attribute -> Question [ctor] .
+  op a__ : Category TypedAttribute -> Fact [ctor] .
+  ops I`dont`know`if`a_can_ I`dont`know`if`a_is_ : Category Attribute -> Fact [ctor] .
+  op I`dont`know`what`a_can`do : Category -> Fact [ctor] .
+  op _is`negative`of_ : TypedAttribute TypedAttribute -> Bool .
+  
+  var A : Attribute .   vars TA1 TA2 : TypedAttribute .
+  eq (cannot A) is negative of (can A) = true .
+  eq (is not a A) is negative of (is a A) = true .
+  eq (has not A) is negative of (has A) = true .
+  eq TA1 is negative of TA2 = false [owise] .
+  
+  op isItemIn : Item ItemSet -> Bool .
+  vars I1 I2 : Item .   var IS : ItemSet .
+  eq isItemIn(I1, I2 ; IS) = if I1 == I2 then true else isItemIn(I1, IS) fi .
+  eq isItemIn(I1, none) = false .
+endtom)
+
+
+(tomod SEMANTIC-MEMORY is
+  protecting NAT-TIME-DOMAIN .
+  including INFORMATION .
+  
+  sorts Domain FactRepresentation SemanticMemory .
+  subsort String < Domain .
+  subsort FactRepresentation < SemanticMemory .
+  op emptySemantic : -> SemanticMemory [ctor] .
+  op _:_|-_->|_ : Domain Category Time TypedAttribute -> FactRepresentation
+                     [ctor format (!r o b o r o b o)] .
+  op __ : SemanticMemory SemanticMemory -> SemanticMemory
+                     [ctor assoc comm id: emptySemantic format (o n o)] .
+  op _is`negated`in_ : Fact SemanticMemory -> Bool .
+
+  var M : Time .   var D : Domain .   var C : Category .   var A : Attribute .
+  vars TA1 TA2 : TypedAttribute .   var S : SemanticMemory .
+  eq ( a C TA1 ) is negated in ( ( D : C |- M ->| TA2 ) S ) = TA2 is negative of TA1 .
+  eq ( a C TA1 ) is negated in S = false [owise] .
+endtom)
+
+
+(tomod TIMED-INFORMATION is
+   protecting INFORMATION .
+   protecting NAT-TIME-DOMAIN-WITH-INF .
+
+   sorts TimedItem TimedItemSet TimedBasicItem FutureBasicItem .
+   subsort TimedItem < TimedItemSet .
+   
+   op _<`decay_> : Item TimeInf -> TimedItem [ctor] .
+   op _for_ : BasicItem TimeInf -> TimedBasicItem [ctor] .
+   op _in_ : TimedBasicItem Time -> FutureBasicItem [ctor] .
+   op emptyTIS : -> TimedItemSet [ctor] .
+   op _;_ : TimedItemSet TimedItemSet -> TimedItemSet
+                   [ctor assoc comm id: emptyTIS format (b o n b)] .
+   eq ITEM:Item < decay 0 > = emptyTIS .
+
+   op removeTime : TimedItemSet -> ItemSet .
+   var I : Item .
+   var TIS : TimedItemSet .
+   var T : TimeInf .  
+   eq removeTime(emptyTIS) = none .
+   eq removeTime((I < decay T >) ; TIS) =  I ; removeTime(TIS) .
+   
+   ops DECAY-TIME MAX-RETRIEVAL-TIME : -> TimeInf .
+endtom)
+
+
+(tomod HUMAN-MEMORY is
+
+  including SEMANTIC-MEMORY .
+  including TIMED-INFORMATION .
+
+  class Human | shortTermMem : TimedItemSet,
+                semanticMem : SemanticMemory .
+
+endtom)
+
+
+(tomod ENVIRONMENT is
+
+  including TIMED-INFORMATION .
+
+  sorts Perception .
+  subsort Perception < Msg .
+  op perc : TimedBasicItem -> Perception [ctor] .
+  var BI : BasicItem .  
+  eq perc(BI for 0) = none .
+
+  sorts Experiment .
+  subsorts Experiment < Msg .
+  op exp : FutureBasicItem -> Experiment [ctor] .
+
+endtom)
+
+
+(tomod OVERALL-SYSTEM is
+
+  including HUMAN-MEMORY .
+  including ENVIRONMENT .
+
+  op init : -> Configuration .
+  op human : -> Oid .
+  op initSemanticMem : -> SemanticMemory .
+  op aHuman : -> Object .
+  
+  eq initSemanticMem =  ("animals" : "animal" |- 1 ->| (can "breath"))
+     		     	("animals" : "animal" |- 1 ->| (can "move"))
+			("dogs" : "dog" |- 1 ->| (is a "animal"))
+		        ("dogs" : "dog" |- 1 ->| (can "bark"))
+			("dogs" : "hound" |- 1 ->| (is a "dog"))
+			("dogs" : "basenji" |- 1 ->| (is a "hound"))
+		        ("dogs" : "hound" |- 1 ->| (can "track"))
+		     	("dogs" : "basenji" |- 1 ->| (cannot "bark")) .
+
+
+
+  eq aHuman = < human : Human | shortTermMem : emptyTIS,
+                                semanticMem : initSemanticMem > .
+
+endtom)
+
+
+(tomod UNTIMED-EVOLUTION is
+
+  including OVERALL-SYSTEM .
+
+  eq DECAY-TIME = 40000 .
+
+  var BI : BasicItem .  
+  var T : Time .
+  var H : Oid .
+  var REST : Configuration .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+
+
+  rl [activate-perception] :
+    {(exp ((BI for T) in 0))
+     REST}
+  =>
+    {(perc (BI for T))
+     REST} .
+
+
+  crl [perceive] :
+    {(perc (BI for T))
+     < H : Human | shortTermMem : TIS >
+     REST}
+  =>
+    {< H : Human | shortTermMem : (BI < decay DECAY-TIME >) ; TIS >
+     (perc (BI for T))
+     REST}
+   if IS := removeTime(TIS) /\
+     not isItemIn(BI, IS) .
+
+
+endtom)
+
+
+
+(tomod OPERATORS is
+
+  including OVERALL-SYSTEM .
+
+  var H : Oid .
+  var N : Nat .
+  vars M M1 FT : Time .
+  vars T T1 : TimeInf .
+  vars D D1 D2 : Domain .
+  vars C C1 C2 : Category .
+  var Q : Question .
+  var F : Fact .
+  vars A A1 : Attribute .
+  vars TA TA1 : TypedAttribute .
+  var BI : BasicItem .
+  var I : Item .
+  var TBI : TimedBasicItem .
+  var FBI : FutureBasicItem .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+  var FR : FactRepresentation .
+  vars S S1 : SemanticMemory .
+  var REST : Configuration .
+  var B : Bool .
+  
+  op idle : Configuration Time -> Configuration [frozen (1)] .
+  op idle : TimedItemSet Time -> TimedItemSet .
+  op idle : TimedBasicItem Time -> TimedBasicItem .
+  op idle : FutureBasicItem Time -> FutureBasicItem .
+
+  eq idle(none, T) = none .
+  eq idle(< H : Human | >  REST, T) = < H : Human | >  idle(REST, T) .
+  eq idle(perc(TBI) REST, T) = perc(idle(TBI, T))  idle(REST, T) .
+  eq idle(exp(FBI) REST, T) = exp(idle(FBI, T))  idle(REST, T) .
+
+  eq idle(emptyTIS, T) = emptyTIS .
+  eq idle((I < decay T1 >) ; TIS , T) = (I < decay (T1 monus T) >) ; idle(TIS, T) .
+  eq idle(BI for T1, T) = BI for (T1 monus T) .
+  eq idle(TBI in FT , T) = TBI in (FT monus T) .
+
+  op timeToSuper : Category Category SemanticMemory -> TimeInf .
+  eq timeToSuper(C, C, S) = 0 .
+  eq timeToSuper(C, C1, (D : C |- M ->| (is a C1)) S) = M .
+  ceq timeToSuper(C, C1, (D : C |- M ->| (is a C2)) S) = timeToSuper(C2, C1, S) + M if C =/= C1 .
+  eq timeToSuper(C, C1, S) = INF [owise] .
+
+  --- assuming that no supercategory of C has typed attribute 'can A'
+  op canRetrievalTime : Category Attribute SemanticMemory -> TimeInf .
+  eq canRetrievalTime(C, A, (D : C |- M ->| (can A)) S)  = M .
+  ceq canRetrievalTime(C, A, (D : C1 |- M ->| (can A)) S) = M + timeToSuper(C, C1, S) if C =/= C1 .
+  eq canRetrievalTime(C, A, S) = INF [owise] .
+
+  op questionFound : TimedItemSet -> Bool .
+  eq questionFound(emptyTIS) = false .
+  eq questionFound((Q < decay T >) ; TIS) = true .
+  eq questionFound((F < decay T >) ; TIS) = questionFound(TIS) .
+
+  op noQuestionFound :  TimedItemSet -> Bool .
+  eq noQuestionFound(emptyTIS) = true .
+  eq noQuestionFound((Q < decay T >) ; TIS) = false .
+  eq noQuestionFound((F < decay T >) ; TIS) = noQuestionFound(TIS) .
+
+  op noExperimentStart : Configuration -> Bool .
+  eq noExperimentStart(none) = true .
+  eq noExperimentStart((exp(TBI in 0)) REST) = false .
+  ceq noExperimentStart((exp(TBI in T1)) REST) = noExperimentStart(REST) if T1 > 0 .
+  eq noExperimentStart((perc(TBI)) REST) = noExperimentStart(REST) .
+  eq noExperimentStart(< H : Human | >  REST) = noExperimentStart(REST) .
+
+  op noPerceptionAvailable : Configuration -> Bool .
+  eq noPerceptionAvailable(none) = true .
+  eq noPerceptionAvailable((perc(TBI)) REST) = false .
+  eq noPerceptionAvailable((exp(FBI)) REST) = noPerceptionAvailable(REST) .
+  eq noPerceptionAvailable(REST) = true [owise] .
+  eq noPerceptionAvailable(< H : Human | >  REST) = noPerceptionAvailable(REST) .
+
+endtom)
+
+
+(tomod TIMED-EVOLUTION is
+
+  including UNTIMED-EVOLUTION .
+  including OPERATORS .
+
+  var H : Oid .
+  var N : Nat .
+  vars M M1 FT : Time .
+  vars T T1 : TimeInf .
+  vars D D1 D2 : Domain .
+  vars C C1 C2 : Category .
+  var Q : Question .
+  var F : Fact .
+  vars A A1 : Attribute .
+  vars TA TA1 : TypedAttribute .
+  var BI : BasicItem .
+  var I : Item .
+  var TBI : TimedBasicItem .
+  var FBI : FutureBasicItem .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+  var FR : FactRepresentation .
+  vars S S1 : SemanticMemory .
+  var REST : Configuration .
+  var B : Bool .
+  
+crl [tick] :
+    {< H : Human | shortTermMem : TIS >
+     REST}
+  =>
+    {< H : Human | shortTermMem : idle(TIS,1) >
+     idle(REST,1)}
+  in time 1
+  if not questionFound(TIS) /\ noExperimentStart(REST) /\ noPerceptionAvailable(REST) .
+  
+
+  crl [can] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C can A) < decay DECAY-TIME >) ; idle(TIS, T),
+       semanticMem : S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(TIS) /\
+     not isItemIn(a C can A, IS) /\ T := canRetrievalTime(C, A, S) /\ T <= MAX-RETRIEVAL-TIME /\
+     not ( ( a C can A ) is negated in S ) .
+
+
+  crl [cannot-explicit] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C cannot A) < decay DECAY-TIME >) ; idle(TIS, M),
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+    idle(REST,M)}
+  in time M
+  if IS := removeTime(TIS) /\ 
+     not isItemIn(a C cannot A, IS) .
+
+
+  crl [cannot-implicit] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C cannot A) < decay DECAY-TIME >) ; idle(TIS, T),
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(TIS) /\
+     not isItemIn(a C cannot A, IS) /\ not isItemIn(a C can A, IS) /\ T := timeToSuper(C1, C, S) + M /\
+     T <= MAX-RETRIEVAL-TIME .
+
+endtom)
+
+
+(tomod EXPERIMENTS is
+
+  including TIMED-EVOLUTION .
+
+---  eq init = (exp(((can a "basenji" "breath" ?) for 20) in 7))
+---            (exp(((what can "bobby" do?) for 20) in 7))
+---            aHuman .
+
+  eq init = (exp(((can a "dog" "breath" ?) for 30000) in 0))
+            (exp(((can a "animal" "move" ?) for 30000) in 30000))
+            (exp(((has a "dog" "four legs" ?) for 30000) in 60000))
+            (exp(((can a "hound" "track" ?) for 30000) in 90000))
+            (exp(((can a "basenji" "bark" ?) for 30000) in 120000))
+            (exp(((is a "armadillo" a "mammal" ?) for 30000) in 150000))
+            (exp(((can a "giraffe" "bark" ?) for 30000) in 180000))
+            (exp(((is a "swallow" a "bird" ?) for 30000) in 210000))
+            aHuman .
+endtom)
+
+(trew [100000] in EXPERIMENTS : {init} in time <= 1000000 .)
