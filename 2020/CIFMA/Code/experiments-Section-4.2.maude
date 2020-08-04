@@ -1,0 +1,21 @@
+load untimed-evolution.maude
+
+(tomod EXPERIMENTS is
+
+  including UNTIMED-EVOLUTION .
+
+  eq init = (exp(((can a "dog" "breath" ?) for 30000) in 0))
+            (exp(((can a "animal" "move" ?) for 30000) in 30000))
+            (exp(((has a "dog" "four legs" ?) for 30000) in 60000))
+            (exp(((can a "hound" "track" ?) for 30000) in 90000))
+            (exp(((can a "basenji" "bark" ?) for 30000) in 120000))
+            (exp(((is a "armadillo" a "mammal" ?) for 30000) in 150000))
+            (exp(((can a "giraffe" "bark" ?) for 30000) in 180000))
+            (exp(((is a "swallow" a "bird" ?) for 30000) in 210000))
+            aHuman .
+endtom)
+
+(trew [1000000] in EXPERIMENTS : {init} in time <= 1000000 .)
+
+
+

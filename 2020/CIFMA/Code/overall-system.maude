@@ -1,0 +1,27 @@
+load environment.maude
+
+(tomod OVERALL-SYSTEM is
+
+  including HUMAN-MEMORY .
+  including ENVIRONMENT .
+
+  op init : -> Configuration .
+  op human : -> Oid .
+  op initSemanticMem : -> SemanticMemory .
+  op aHuman : -> Object .
+  
+  eq initSemanticMem =  ("animals" : "animal" |- 1 ->| (can "breath"))
+     		     	("animals" : "animal" |- 1 ->| (can "move"))
+			("dogs" : "dog" |- 1 ->| (is a "animal"))
+		        ("dogs" : "dog" |- 1 ->| (can "bark"))
+			("dogs" : "hound" |- 1 ->| (is a "dog"))
+			("dogs" : "basenji" |- 1 ->| (is a "hound"))
+		        ("dogs" : "hound" |- 1 ->| (can "track"))
+		     	("dogs" : "basenji" |- 1 ->| (cannot "bark")) .
+
+
+
+  eq aHuman = < human : Human | shortTermMem : emptyTIS,
+                                semanticMem : initSemanticMem > .
+
+endtom)

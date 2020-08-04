@@ -1,0 +1,37 @@
+load overall-system
+
+(tomod UNTIMED-EVOLUTION is
+
+  including OVERALL-SYSTEM .
+
+  eq DECAY-TIME = 40000 .
+
+  var BI : BasicItem .  
+  var T : Time .
+  var H : Oid .
+  var REST : Configuration .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+
+
+  rl [activate-perception] :
+    {(exp ((BI for T) in 0))
+     REST}
+  =>
+    {(perc (BI for T))
+     REST} .
+
+
+  crl [perceive] :
+    {(perc (BI for T))
+     < H : Human | shortTermMem : TIS >
+     REST}
+  =>
+    {< H : Human | shortTermMem : (BI < decay DECAY-TIME >) ; TIS >
+     (perc (BI for T))
+     REST}
+   if IS := removeTime(TIS) /\
+     not isItemIn(BI, IS) .
+
+
+endtom)

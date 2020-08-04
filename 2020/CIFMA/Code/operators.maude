@@ -1,0 +1,79 @@
+load untimed-evolution
+
+(tomod OPERATORS is
+
+  including OVERALL-SYSTEM .
+
+  var H : Oid .
+  var N : Nat .
+  vars M M1 FT : Time .
+  vars T T1 : TimeInf .
+  vars D D1 D2 : Domain .
+  vars C C1 C2 : Category .
+  var Q : Question .
+  var F : Fact .
+  vars A A1 : Attribute .
+  vars TA TA1 : TypedAttribute .
+  var BI : BasicItem .
+  var I : Item .
+  var TBI : TimedBasicItem .
+  var FBI : FutureBasicItem .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+  var FR : FactRepresentation .
+  vars S S1 : SemanticMemory .
+  var REST : Configuration .
+  var B : Bool .
+  
+  op idle : Configuration Time -> Configuration [frozen (1)] .
+  op idle : TimedItemSet Time -> TimedItemSet .
+  op idle : TimedBasicItem Time -> TimedBasicItem .
+  op idle : FutureBasicItem Time -> FutureBasicItem .
+
+  eq idle(none, T) = none .
+  eq idle(< H : Human | >  REST, T) = < H : Human | >  idle(REST, T) .
+  eq idle(perc(TBI) REST, T) = perc(idle(TBI, T))  idle(REST, T) .
+  eq idle(exp(FBI) REST, T) = exp(idle(FBI, T))  idle(REST, T) .
+
+  eq idle(emptyTIS, T) = emptyTIS .
+  eq idle((I < decay T1 >) ; TIS , T) = (I < decay (T1 monus T) >) ; idle(TIS, T) .
+  eq idle(BI for T1, T) = BI for (T1 monus T) .
+  eq idle(TBI in FT , T) = TBI in (FT monus T) .
+
+  op timeToSuper : Category Category SemanticMemory -> TimeInf .
+  eq timeToSuper(C, C, S) = 0 .
+  eq timeToSuper(C, C1, (D : C |- M ->| (is a C1)) S) = M .
+  ceq timeToSuper(C, C1, (D : C |- M ->| (is a C2)) S) = timeToSuper(C2, C1, S) + M if C =/= C1 .
+  eq timeToSuper(C, C1, S) = INF [owise] .
+
+  --- assuming that no supercategory of C has typed attribute 'can A'
+  op canRetrievalTime : Category Attribute SemanticMemory -> TimeInf .
+  eq canRetrievalTime(C, A, (D : C |- M ->| (can A)) S)  = M .
+  ceq canRetrievalTime(C, A, (D : C1 |- M ->| (can A)) S) = M + timeToSuper(C, C1, S) if C =/= C1 .
+  eq canRetrievalTime(C, A, S) = INF [owise] .
+
+  op questionFound : TimedItemSet -> Bool .
+  eq questionFound(emptyTIS) = false .
+  eq questionFound((Q < decay T >) ; TIS) = true .
+  eq questionFound((F < decay T >) ; TIS) = questionFound(TIS) .
+
+  op noQuestionFound :  TimedItemSet -> Bool .
+  eq noQuestionFound(emptyTIS) = true .
+  eq noQuestionFound((Q < decay T >) ; TIS) = false .
+  eq noQuestionFound((F < decay T >) ; TIS) = noQuestionFound(TIS) .
+
+  op noExperimentStart : Configuration -> Bool .
+  eq noExperimentStart(none) = true .
+  eq noExperimentStart((exp(TBI in 0)) REST) = false .
+  ceq noExperimentStart((exp(TBI in T1)) REST) = noExperimentStart(REST) if T1 > 0 .
+  eq noExperimentStart((perc(TBI)) REST) = noExperimentStart(REST) .
+  eq noExperimentStart(< H : Human | >  REST) = noExperimentStart(REST) .
+
+  op noPerceptionAvailable : Configuration -> Bool .
+  eq noPerceptionAvailable(none) = true .
+  eq noPerceptionAvailable((perc(TBI)) REST) = false .
+  eq noPerceptionAvailable((exp(FBI)) REST) = noPerceptionAvailable(REST) .
+  eq noPerceptionAvailable(REST) = true [owise] .
+  eq noPerceptionAvailable(< H : Human | >  REST) = noPerceptionAvailable(REST) .
+
+endtom)

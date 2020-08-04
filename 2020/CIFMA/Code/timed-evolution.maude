@@ -1,0 +1,90 @@
+load operators.maude
+
+(tomod TIMED-EVOLUTION is
+
+  including UNTIMED-EVOLUTION .
+  including OPERATORS .
+
+  var H : Oid .
+  var N : Nat .
+  vars M M1 FT : Time .
+  vars T T1 : TimeInf .
+  vars D D1 D2 : Domain .
+  vars C C1 C2 : Category .
+  var Q : Question .
+  var F : Fact .
+  vars A A1 : Attribute .
+  vars TA TA1 : TypedAttribute .
+  var BI : BasicItem .
+  var I : Item .
+  var TBI : TimedBasicItem .
+  var FBI : FutureBasicItem .
+  var IS : ItemSet .
+  var TIS : TimedItemSet .
+  var FR : FactRepresentation .
+  vars S S1 : SemanticMemory .
+  var REST : Configuration .
+  var B : Bool .
+  
+crl [tick] :
+    {< H : Human | shortTermMem : TIS >
+     REST}
+  =>
+    {< H : Human | shortTermMem : idle(TIS,1) >
+     idle(REST,1)}
+  in time 1
+  if not questionFound(TIS) /\ noExperimentStart(REST) /\ noPerceptionAvailable(REST) .
+  
+
+  crl [can] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C can A) < decay DECAY-TIME >) ; idle(TIS, T),
+       semanticMem : S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(TIS) /\
+     not isItemIn(a C can A, IS) /\ T := canRetrievalTime(C, A, S) /\ T <= MAX-RETRIEVAL-TIME /\
+     not ( ( a C can A ) is negated in S ) .
+
+
+  crl [cannot-explicit] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C cannot A) < decay DECAY-TIME >) ; idle(TIS, M),
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+    idle(REST,M)}
+  in time M
+  if IS := removeTime(TIS) /\ 
+     not isItemIn(a C cannot A, IS) .
+
+
+  crl [cannot-implicit] :
+    {< H : Human | shortTermMem : TIS ; ((can a C A ?) < decay T1 >),
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+     REST}
+  =>
+    {< H : Human | shortTermMem : ((a C cannot A) < decay DECAY-TIME >) ; idle(TIS, T),
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(TIS) /\
+     not isItemIn(a C cannot A, IS) /\ not isItemIn(a C can A, IS) /\ T := timeToSuper(C1, C, S) + M /\
+     T <= MAX-RETRIEVAL-TIME .
+
+endtom)
+
+(tomod EXPERIMENTS is
+
+  including TIMED-EVOLUTION .
+
+  eq init = (exp(((can a "basenji" "breath" ?) for 20) in 7))
+            aHuman .
+
+endtom)
+
+(trew [100] in TIMED-EVOLUTION : {init} in time <= 100 .)
