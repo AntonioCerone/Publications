@@ -1,0 +1,512 @@
+load real-time-maude.maude
+
+(tomod INFORMATION is
+
+  protecting NAT .
+  protecting STRING .
+
+  sorts Fact Question .
+  sorts Domain BasicItem Item Goal .     --- an 'Item' can be either a 'BasicItem' or a 'Goal'
+  subsort BasicItem < Item .        
+  subsort Goal < Item .
+  subsorts Fact Question < BasicItem .
+
+  sorts BasicItemSet ItemSet EmptyItemSet .
+  subsort BasicItem < BasicItemSet .
+  subsorts EmptyItemSet < BasicItemSet < ItemSet .
+  subsort Item < ItemSet .
+  op none : -> EmptyItemSet [ctor] .
+  op _;_ : BasicItemSet BasicItemSet -> BasicItemSet [ctor assoc comm id: none format (b o n b)] .
+  op _;_ : ItemSet ItemSet -> ItemSet [ctor ditto] .
+  op _;_ : EmptyItemSet EmptyItemSet -> EmptyItemSet [ctor ditto] .
+
+  sort Achievement .
+  subsort Achievement < BasicItem .
+
+  ops foundAnswer rehearsed : -> Achievement [ctor] .
+
+  op goal : Domain BasicItemSet Nat Nat -> Goal [ctor] . --- determination:Nat repetition:Nat
+
+---  op domainFocus : Domain -> BasicItem [ctor] .
+
+  sorts Category Attribute TypedAttribute .
+  subsort String < Category < Attribute .
+  subsort String < Domain .
+
+  ops can_ is`a_ has_ : Attribute -> TypedAttribute [ctor] .
+  ops cannot_ is`not`a_ has`not_ has_ : Attribute -> TypedAttribute [ctor] .
+  op what`can_do? : Category -> Question [ctor] .
+  ops can`a__? is`a__? has`a__? : Category Attribute -> Question [ctor] .
+  op a__ : Category TypedAttribute -> Fact [ctor] .
+  
+  ops I`dont`know`if`a_can_ I`dont`know`if`a_is_ : Category Attribute -> Fact [ctor] .
+  op I`dont`know`what`a_can`do : Category -> Fact [ctor] .
+
+  op _is`negative`of_ : TypedAttribute TypedAttribute -> Bool .
+
+--- op negate : TypedAttribute -> TypedAttribute .
+---
+  var A : Attribute .
+  vars TA1 TA2 : TypedAttribute .
+  eq (cannot A) is negative of (can A) = true .
+  eq (is not a A) is negative of (is a A) = true .
+  eq (has not A) is negative of (has A) = true .
+  eq TA1 is negative of TA2 = false [owise] .
+
+  op isItemIn : Item ItemSet -> Bool .
+
+  vars I1 I2 : Item .
+  var IS : ItemSet .
+
+  eq isItemIn(I1, I2 ; IS) = if I1 == I2 then true
+                                else isItemIn(I1, IS) fi .
+  eq isItemIn(I1, none) = false .
+
+  ops isAchievement explicitAttention : BasicItem ItemSet -> Bool .
+
+  vars BI1 BI2 : BasicItem .
+  var BIS : BasicItemSet .
+  var IS : ItemSet .
+  var D : Domain .
+  vars DET REP : Nat .
+
+  eq isAchievement(BI1, goal(D, (BI2 ; BIS), DET, REP) ; IS) = BI1 == BI2 or isAchievement(BI1, IS) .
+  eq isAchievement(BI1, IS) = false [owise] .
+  
+
+  var Q : Question .
+  eq explicitAttention(Q, goal(D, (foundAnswer ; BIS), DET, REP) ; IS) = true .
+  eq explicitAttention(BI1, IS) = false [owise] .
+
+endtom)
+
+
+(tomod TIMED-ITEMS is
+
+   protecting INFORMATION .
+   protecting STRING .
+   protecting NAT-TIME-DOMAIN-WITH-INF .
+
+   ops DECAY-TIME MAX-RETRIEVAL-TIME : -> TimeInf .
+   eq DECAY-TIME = 100 .
+   eq MAX-RETRIEVAL-TIME = 20 .
+
+   ops STM-ACCESS-TIME STM-TO-LTM-THRESHOLD : -> Time .
+   eq STM-ACCESS-TIME = 1 .
+   eq STM-TO-LTM-THRESHOLD = 120 .
+
+   op maintenance-effect : TimeInf -> TimeInf .
+   var T : TimeInf .
+   eq maintenance-effect(T) = s(T) .
+
+   op elaborative-effect : TimeInf -> TimeInf .
+   eq elaborative-effect(T) = s(T) .
+
+   sorts Chunk ShortTermMemory TimedBasicItem FutureBasicItem .
+   subsort Chunk < ShortTermMemory .
+
+   op chunk_decay_of_ : ItemSet TimeInf TimeInf -> Chunk [ctor] .
+   op _for_ : BasicItem TimeInf -> TimedBasicItem [ctor] .
+   op _in_ : TimedBasicItem Time -> FutureBasicItem [ctor] .
+   
+   op emptySTM : -> ShortTermMemory [ctor] .
+   op _;_ : ShortTermMemory ShortTermMemory ->
+              ShortTermMemory [ctor assoc comm id: emptySTM format (b o n b)] .
+
+   *** If time to decay has reached zero, the term is removed:
+   eq chunk ITEM:Item decay 0 of T:TimeInf = emptySTM .
+
+   op removeTime : ShortTermMemory -> ItemSet .
+
+   var IS : ItemSet .
+   var STM : ShortTermMemory .
+   vars T1 T2 : TimeInf .
+   
+   eq removeTime(emptySTM) = none .
+   eq removeTime((chunk IS decay T1 of T2) ; STM) =  IS ; removeTime(STM) .
+   
+endtom)
+
+
+(tomod PROCEDURAL-MEMORY is
+
+  protecting NAT .
+  protecting STRING .
+---  including TIMED-ITEMS . 
+
+  sorts ProceduralMemory .
+
+  op emptyProcedural : -> ProceduralMemory [ctor] .
+
+endtom)
+
+
+(tomod SEMANTIC-MEMORY is
+
+  protecting NAT .
+  protecting STRING .
+  including TIMED-ITEMS .
+  
+  sorts FactRepresentation SemanticMemory .
+  subsort FactRepresentation < SemanticMemory .
+
+  op emptySemantic : -> SemanticMemory .
+  op _:_|-_->|_ : Domain Category Time TypedAttribute -> FactRepresentation [ctor format (!r o b o r o b o)] .
+  op __ : SemanticMemory SemanticMemory -> SemanticMemory [ctor assoc comm id: emptySemantic format (o n o)] .
+
+  op _is`negated`in_ : Fact SemanticMemory -> Bool .
+
+  var M : Time .
+  var D : Domain .
+  var C : Category .
+  var A : Attribute .
+  vars TA1 TA2 : TypedAttribute .
+  var S : SemanticMemory .
+
+  eq ( a C TA1 ) is negated in ( ( D : C |- M ->| TA2 ) S ) = TA2 is negative of TA1 .
+  eq ( a C TA1 ) is negated in S = false [owise] .
+
+endtom)
+
+
+(tomod ENVIRONMENT is
+
+  including TIMED-ITEMS .
+
+  sorts Perception SingleExperiment Experiment .
+  subsorts Perception SingleExperiment < Experiment < Msg .
+
+  op perc : TimedBasicItem -> Perception [ctor] .
+
+  op exp : FutureBasicItem -> SingleExperiment [ctor] .
+
+  op noExp : -> Experiment [ctor].
+  op repeat_times`starting`in_:_ : Nat Time SingleExperiment
+                                             -> Experiment .
+
+  var BI : BasicItem .
+  
+  eq perc(BI for 0) = none .
+
+  var T : Time .
+  var E : SingleExperiment .
+
+  eq repeat 0 times starting in T : E = none .
+  eq repeat 1 times starting in T : E = E .
+
+  op tp : Perception -> Time .
+
+  var Q : Question .
+  var F : Fact .
+  var P : Perception .
+
+  eq tp(perc(Q for T)) = 1 .
+  eq tp(perc(F for T)) = 1 .
+  eq tp(P) = 1 [owise] .
+
+endtom)
+
+
+(tomod HUMAN is
+
+  including PROCEDURAL-MEMORY .
+  including SEMANTIC-MEMORY .
+  including ENVIRONMENT .
+
+  class Human | cognitiveLoad : Nat, --- size of short-time memory, maybe counting invisible "previous" stuff!
+		shortTermMem : ShortTermMemory,
+ 		proceduralMem : ProceduralMemory,
+                semanticMem : SemanticMemory .
+
+endtom)
+
+
+(tomod EVOLUTION is
+
+  including HUMAN .
+
+  var H : Oid .
+  vars N N1 N2 : Nat .
+  vars M M1 FT IT : Time .
+  vars T T1 T2 T3 T4 TP : TimeInf .
+  vars D D1 D2 : Domain .
+  vars C C1 C2 : Category .
+  var Q : Question .
+  var F : Fact .
+  var G : Goal .
+  var E : Experiment .
+  vars A A1 : Attribute .
+  vars TA TA1 : TypedAttribute .
+  var BI : BasicItem .
+  var I : Item .
+  var TBI : TimedBasicItem .
+  var FBI : FutureBasicItem .
+  var IS : ItemSet .
+  var CH : Chunk .
+  vars STM STM1 STM2 : ShortTermMemory . --- formerly TIS : TimedItemSet .
+  var FR : FactRepresentation .
+  vars S S1 : SemanticMemory .
+  var REST : Configuration .
+  var B : Bool .
+
+  op applied-rule : String -> Msg .
+
+  op idle : Configuration Time -> Configuration [frozen (1)] .
+  op idle : ShortTermMemory Time -> ShortTermMemory .
+  op idle : TimedBasicItem Time -> TimedBasicItem .
+  op idle : FutureBasicItem Time -> FutureBasicItem .
+
+  eq idle(none, T) = none .
+  eq idle(< H : Human | >  REST, T) = < H : Human | >  idle(REST, T) .
+  eq idle(perc(TBI) REST, T) = perc(idle(TBI, T))  idle(REST, T) .
+  eq idle(exp(FBI) REST, T) = exp(idle(FBI, T))  idle(REST, T) .
+  eq idle((repeat N times starting in IT : E) REST, T) =
+                           (repeat N times starting in (IT monus T) : E) idle(REST, T) .
+
+  eq idle(emptySTM, T) = emptySTM .
+  eq idle((chunk IS decay T1 of T2) ; STM , T) = (chunk IS decay (T1 monus T) of T2 ) ; idle(STM, T) .
+  eq idle(BI for T1, T) = BI for (T1 monus T) .
+  eq idle(TBI in FT , T) = TBI in (FT monus T) .
+
+  op timeToSuper : Category Category SemanticMemory ItemSet -> TimeInf .
+  eq timeToSuper(C, C, S, IS) = 0 .
+  ceq timeToSuper(C, C1, S, IS) = STM-ACCESS-TIME if isItemIn(a C is a C1, IS) .
+  ceq timeToSuper(C, C1, (D : C |- M ->| (is a C1)) S, IS ) = M if not isItemIn(a C is a C1, IS) .
+  ceq timeToSuper(C, C1, (D : C |- M ->| (is a C2)) S, IS) = timeToSuper(C2, C1, S, IS) + M if C =/= C1 .
+  eq timeToSuper(C, C1, S, IS) = INF [owise] .
+
+ --- assuming that no supercategory of C has typed attribute 'can A'
+  op canRetrievalTime : Category Attribute SemanticMemory ItemSet -> TimeInf .
+  ceq canRetrievalTime(C, A, S, IS) = STM-ACCESS-TIME  if isItemIn(a C can A, IS) .
+  ceq canRetrievalTime(C, A, (D : C |- M ->| (can A)) S, IS) = M if not isItemIn(a C can A, IS) .
+  ceq canRetrievalTime(C, A, (D : C1 |- M ->| (can A)) S, IS) = M + timeToSuper(C, C1, S, IS) if C =/= C1 .
+  eq canRetrievalTime(C, A, S, IS) = INF [owise] .
+
+  op questionFound : ShortTermMemory -> Bool .
+  eq questionFound(emptySTM) = false .
+  eq questionFound((chunk Q decay T1 of T2) ; STM) = true .
+  eq questionFound((chunk F decay T1 of T2) ; STM) = questionFound(STM) .
+  eq questionFound((chunk G decay T1 of T2) ; STM) = questionFound(STM) .
+
+  op noQuestionFound :  ShortTermMemory -> Bool .
+  eq noQuestionFound(emptySTM) = true .
+  eq noQuestionFound((chunk Q decay T1 of T2) ; STM) = false .
+  eq noQuestionFound((chunk F decay T1 of T2) ; STM) = noQuestionFound(STM) .
+  eq noQuestionFound((chunk G decay T1 of T2) ; STM) = noQuestionFound(STM) .
+
+
+  op noExperimentStart : Configuration -> Bool .
+  eq noExperimentStart(none) = true .
+  eq noExperimentStart((exp(TBI in FT)) REST) = FT > 0 .
+  eq noExperimentStart((repeat s(N) times starting in IT : E) REST) = IT > 0 .
+  ceq noExperimentStart((exp(TBI in T1)) REST) = noExperimentStart(REST) if T1 > 0 .
+  eq noExperimentStart((perc(TBI)) REST) = noExperimentStart(REST) .
+  eq noExperimentStart(< H : Human | >  REST) = noExperimentStart(REST) .
+
+  op noPerceptionAvailable : Configuration -> Bool .
+  eq noPerceptionAvailable(none) = true .
+  eq noPerceptionAvailable((perc(TBI)) REST) = false .
+  eq noPerceptionAvailable((exp(FBI)) REST) = noPerceptionAvailable(REST) .
+  eq noPerceptionAvailable(REST) = true [owise] .
+  eq noPerceptionAvailable(< H : Human | >  REST) = noPerceptionAvailable(REST) .
+
+
+crl [tick] :
+    {< H : Human | shortTermMem : STM >
+     REST}
+  =>
+    {< H : Human | shortTermMem : idle(STM,1) >
+     idle(REST,1)}
+  in time 1
+---  if true .
+  if not questionFound(STM) /\ noExperimentStart(REST) /\ noPerceptionAvailable(REST) .
+---  if noQuestionFound(STM) .
+  
+
+  rl [activate-perception] :
+    {(exp ((BI for T) in 0))
+     REST}
+  =>
+    {(perc (BI for T))
+     REST} .
+
+
+  crl [activate-perception-repeatedly] :
+    {(repeat N times starting in 0 : (exp ((BI for T) in FT)))
+     REST}
+  =>
+    {(repeat (N monus 1) times starting in FT : (exp ((BI for T) in FT)))
+     (exp ((BI for T) in 0))
+     REST}
+  if N > 0 .
+
+
+--- create in STM the information corresponding to the perception if there is explicit attention
+--- on that perception and such information is not already in STM
+  crl [perception-explicit-storage] :
+    {(perc (BI for T))
+     < H : Human | shortTermMem : STM >
+     REST}
+  =>
+    {< H : Human | shortTermMem : (chunk BI decay DECAY-TIME of DECAY-TIME) ; idle(STM,TP) >
+     (perc (BI for (T monus TP)))
+     REST}
+   in time TP
+   if TP := tp(perc (BI for T)) /\
+      IS := removeTime(STM) /\ explicitAttention(BI, IS) /\  not isItemIn(BI, IS) .
+
+
+--- reset the current decay time of the information in STM that corresponds to the perception
+--- and increment the decay threshold using the maintenance-effect function
+--- if there is a goal containing rehearsed (see definition of IsAchievement) in STM
+--- and the decay threshold has not reached the transfer-to-LTM threshold
+  crl [perception-explicit-maintenance] :
+    {(perc (BI for T))
+     < H : Human | shortTermMem : (chunk BI decay T1 of T2) ; STM >
+     REST}
+  =>
+    {< H : Human | shortTermMem : (chunk BI decay T2 of maintenance-effect(T2)) ; idle(STM,TP) >
+     (perc (BI for (T monus TP)))
+     REST}
+   in time TP
+   if TP := tp(perc (BI for T)) /\
+      T2 < STM-TO-LTM-THRESHOLD /\
+      IS := removeTime(STM)  /\  isAchievement(rehearsed, IS) .
+
+
+  crl [from-STM-to-LTM-fact-can] :
+    {< H : Human | cognitiveLoad : N,
+                   shortTermMem : (chunk goal(D, rehearsed, N1, N2) decay T1 of T2) ;
+                                  (chunk (a C can A) decay T3 of T4) ; STM,
+                   semanticMem : S >
+     REST}
+  =>
+    {< H : Human | cognitiveLoad : N,
+                   shortTermMem : STM,
+                   semanticMem : (D : C |- 1 ->| (can A)) S >
+     REST}
+   if T4 >= STM-TO-LTM-THRESHOLD .
+
+
+    var NEW-GOAL-CHUNK : ShortTermMemory .
+
+--- If the goal achievement is foundAnswer the answer to the question in STM is retrieved
+--- from the semantic memory
+  crl [can] :
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : (chunk goal(D, foundAnswer, N1, N2) decay T1 of T2) ;
+                      (chunk (can a C A ?) decay T3 of T4) ; STM,
+       semanticMem : S >
+     REST}
+  =>
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : NEW-GOAL-CHUNK ;
+                      (chunk (a C can A) decay DECAY-TIME of DECAY-TIME) ;
+                      idle(STM, T),
+       semanticMem : S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(STM) /\
+     not isItemIn(a C can A, IS) /\ T := canRetrievalTime(C, A, S, IS) /\ T <= MAX-RETRIEVAL-TIME /\
+     not ( ( a C can A ) is negated in S ) /\ not isItemIn(a C cannot A, IS) /\
+     NEW-GOAL-CHUNK := if N1 > 0
+                         then (chunk goal(D, foundAnswer, N1 monus 1, N2) decay DECAY-TIME of DECAY-TIME)
+                         else emptySTM fi .
+
+
+  crl [cannot-explicit] :
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : (chunk goal(D, foundAnswer, N1, N2) decay T1 of T2) ;
+                      (chunk (can a C A ?) decay T3 of 4) ; STM,
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+     REST}
+  =>
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : NEW-GOAL-CHUNK ;
+                      (chunk (a C cannot A) decay DECAY-TIME of DECAY-TIME) ;
+                      idle(STM, M),
+       semanticMem : (D : C |- M ->| (cannot A)) S >
+    idle(REST,M)}
+  in time M
+  if IS := removeTime(STM) /\  not isItemIn(a C cannot A, IS) /\
+     NEW-GOAL-CHUNK := if N1 > 0
+                         then (chunk goal(D, foundAnswer, N1 monus 1, N2) decay DECAY-TIME of DECAY-TIME)
+                         else emptySTM fi .
+
+  crl [cannot-implicit] :
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : (chunk goal(D, foundAnswer, N1, N2) decay T1 of T2) ;
+                      (chunk (can a C A ?) decay T3 of 4) ; STM,
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+     REST}
+  =>
+    {< H : Human | cognitiveLoad : N,
+       shortTermMem : NEW-GOAL-CHUNK ;
+                      (chunk (a C cannot A) decay DECAY-TIME of DECAY-TIME) ;
+                      idle(STM, M),
+       semanticMem : (D : C1 |- M ->| (can A)) S >
+    idle(REST,T)}
+  in time T
+  if IS := removeTime(STM) /\
+     not isItemIn(a C cannot A, IS) /\ not isItemIn(a C can A, IS) /\
+     T := timeToSuper(C1, C, S, IS) + M /\ T <= MAX-RETRIEVAL-TIME /\
+     NEW-GOAL-CHUNK := if N1 > 0
+                         then (chunk goal(D, foundAnswer, N1 monus 1, N2) decay DECAY-TIME of DECAY-TIME)
+                         else emptySTM fi .
+
+endtom)
+
+
+(tomod EXAMPLE-DOGS is
+
+  including EVOLUTION .
+
+  op init-SemanticMem : -> SemanticMemory .
+
+  eq init-SemanticMem = ("animals" : "animal" |- 1 ->| (can "move"))
+		 	("dogs" : "dog" |- 1 ->| (is a "animal"))
+		        ("dogs" : "dog" |- 1 ->| (can "bark"))
+		  	("dogs" : "hound" |- 1 ->| (is a "dog"))
+			("dogs" : "basenji" |- 1 ->| (is a "hund"))
+		        ("dogs" : "hound" |- 1 ->| (can "track"))
+		     	("dogs" : "basenji" |- 1 ->| (cannot "bark")) .
+
+  ops init-question init-rote init-eleborative experiment-setting : -> Configuration .
+
+  op human : -> Oid .
+
+  ops theHuman-question theHuman-rote : -> Object .
+  ops init-STM-question init-STM-rote : -> ShortTermMemory .
+  
+  eq init-STM-question = chunk goal("animals", foundAnswer, 0, 5) decay DECAY-TIME of DECAY-TIME .
+  eq init-STM-rote = (chunk a "animal" can "breathe" decay 10 of DECAY-TIME) ;
+                     (chunk goal("animals", rehearsed, 0, 5) decay DECAY-TIME of DECAY-TIME) .
+
+  eq theHuman-question = < human : Human | cognitiveLoad : 0,
+		                           shortTermMem : init-STM-question,
+ 		                           proceduralMem : emptyProcedural,
+                                           semanticMem : init-SemanticMem > .
+  
+  eq theHuman-rote = < human : Human | cognitiveLoad : 0,
+		                       shortTermMem : init-STM-rote,
+ 		                       proceduralMem : emptyProcedural,
+                                       semanticMem : init-SemanticMem > .
+  
+  eq init-question = (exp(((can a "hound" "move" ?) for 2) in 7))
+                     theHuman-question .
+
+  eq init-rote = (repeat 20 times starting in 3 :
+                     exp(((a "animal" can "breathe") for 10) in 20))
+                 theHuman-rote .
+
+  eq experiment-setting = (exp(((can a "hound" "breathe" ?) for 1) in 100))
+                          (exp(((can a "dog" "move" ?) for 1) in 200))
+                          (exp(((can a "dog" "bark" ?) for 1) in 300))
+                          theHuman-question .
+
+endtom)
+
+
+(trew [10000] in EXAMPLE-DOGS : {init-rote} in time <= 43 .)
+
+
