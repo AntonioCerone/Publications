@@ -1,0 +1,439 @@
+load real-time-maude.maude
+
+(tomod SETTING is
+
+  protecting NAT .
+  protecting NAT-TIME-DOMAIN-WITH-INF .
+
+  op TIME-GRANULARITY : -> Time .
+  eq TIME-GRANULARITY = 10 .
+
+  ops INITIAL-POPULATION DEATH-RATE LIFE-DURATION : -> Nat .
+  eq INITIAL-POPULATION = 120 .
+  eq DEATH-RATE = 5 . --- around 5% per 120 minutes
+  eq LIFE-DURATION = 120 .
+
+  ops C-DI-GMP-THRESHOLD-SESSILE C-DI-GMP-THRESHOLD-BIOFIM REPRODUCTION-THRESHOLD : -> Nat . 
+  eq C-DI-GMP-THRESHOLD-SESSILE = 200 .
+  eq C-DI-GMP-THRESHOLD-BIOFIM = 40000 .   ---  100000
+  eq REPRODUCTION-THRESHOLD = 350 .               ---   10000
+
+  ops C-DI-GMP-0, C-DI-GMP-20, C-DI-GMP-40, C-DI-GMP-60 : -> Nat .
+  ops C-DI-GMP-80, C-DI-GMP-100, C-DI-GMP-120 : -> Nat .
+  eq C-DI-GMP-0 = 40 .
+  eq C-DI-GMP-20 = 270 .
+  eq C-DI-GMP-40 = 170 .
+  eq C-DI-GMP-60 = 110 .
+  eq C-DI-GMP-80 = 110 .
+  eq C-DI-GMP-100 = 110 .
+  eq C-DI-GMP-120 = 40 .
+
+  ops REPLACEMENT-FREQUENCY QUENCHING : -> Nat .
+  eq REPLACEMENT-FREQUENCY = 20 .
+  eq QUENCHING = 30 .  --- 30% removed I. 24 hours
+
+endtom)
+
+
+(tomod BACTERIA is
+
+  including SETTING .
+
+  sort BioState .
+
+  ops planktonic sessile : -> BioState [ctor] .
+
+  class Bacterium | state : BioState,
+                    toDuplication : Nat,
+                    c-di-GMP-internal : Nat .
+
+endtom)
+
+(tomod POPULATION is
+
+  including BACTERIA .
+
+  sort PopState .
+
+  ops creation next-time  : -> BioState [ctor] .
+  ops ready-to-reproduce ready-to-die attributes-updated : -> BioState [ctor] .
+
+  class Population | state : BioState,
+                     size : Nat,
+                     planktonic-cells : Nat,
+                     sessile-cells : Nat,
+                     c-di-GMP-global : Nat,
+                     biofilm : Bool .
+
+endtom)
+
+
+(tomod EVOLUTION is
+
+  including POPULATION .
+
+  subsort Nat < Oid .
+  
+  op renaming : Oid -> Oid .
+
+  ops rename changeState : Configuration -> Configuration .
+  op countCells : Configuration BioState -> Nat .
+  ops countMitoses count-c-di-GMP : Configuration -> Nat .
+---  ops mitoses death : Configuration Nat -> Configuration .
+  op mitoses : Configuration Nat -> Configuration .
+  op starvation : Configuration Nat Nat -> Configuration .
+
+  vars S S1 : BioState .
+  var P RB : Oid .
+  vars B POP M N NP NS C ASSIGNED-AGE LIFE-LEFT : Nat .
+  vars INITIAL-C-DI-GMP NEW-C-DI-GMP NEW-NP NEW-NS : Nat .
+  vars BACTERIA NEW-BACTERIA REST : Configuration .
+  var BOOL : Bool .
+
+  eq changeState(none) = none .
+  eq changeState(< B : Bacterium | state : S,
+                                 c-di-GMP-internal : C > REST) =
+    if C >= C-DI-GMP-THRESHOLD-SESSILE
+          then < B : Bacterium | state : sessile,
+                                 c-di-GMP-internal : C > changeState(REST) 
+          else < B : Bacterium | state : planktonic,
+                                 c-di-GMP-internal : C > changeState(REST)
+    fi .
+
+  eq countCells(none, S) = 0 .
+  eq countCells(< P : Population | > REST, S) = countCells(REST, S) .
+  eq countCells(< B : Bacterium | state : S1,
+                                  c-di-GMP-internal : C > REST, S) = 
+    if S == S1
+          then 1 + countCells(REST, S) 
+          else countCells(REST, S)
+    fi . 
+
+  eq mitoses(none, N) = none .
+  eq mitoses(< P : Population | >, N) = none .
+  eq mitoses(< B : Bacterium | state : S,
+                               toDuplication : 0,
+                               c-di-GMP-internal : C > REST, N) = 
+     < B : Bacterium | state : S,
+                       toDuplication : LIFE-DURATION,
+                       c-di-GMP-internal : C-DI-GMP-0 >
+     < s(N) : Bacterium | state : S,
+                          toDuplication : LIFE-DURATION,
+                          c-di-GMP-internal : 0 >
+     mitoses(REST, s(N)) . 
+  ceq mitoses(< B : Bacterium | toDuplication : M > REST, N) =
+     < B : Bacterium | toDuplication : M > mitoses(REST, N)
+  if M > 0 .
+
+  eq countMitoses(none) = 0 .
+  eq countMitoses(< P : Population | > REST) = countMitoses(REST) .
+  eq countMitoses(< B : Bacterium | toDuplication : N > REST) = 
+    if N == 0
+          then 1 + countMitoses(REST) 
+          else countMitoses(REST)
+    fi . 
+
+  eq count-c-di-GMP(none) = 0 .
+  eq count-c-di-GMP(< P : Population | > REST) = countMitoses(REST) .
+  eq count-c-di-GMP(< B : Bacterium | c-di-GMP-internal : C > REST) = 
+    C + count-c-di-GMP(REST) . 
+
+  eq rename(none) = none .
+  eq rename(< P : Population | >) = < renaming(P) : Population | > .
+  eq rename(< B : Bacterium | state : S,
+                              toDuplication : M,
+                              c-di-GMP-internal : C > REST) =
+              < renaming(B) : Bacterium | state : S,
+                                          toDuplication : M,
+                                          c-di-GMP-internal : C >
+              rename(REST) .
+ 
+  eq starvation(none, N, POP) = none .
+  eq starvation(< P : Population | >, N, POP) = none .
+  ceq starvation(< RB : Bacterium | > REST, N, POP) = starvation(REST, N monus 1, POP) if N > 0 .
+  eq starvation(< RB : Bacterium | state : S,
+                                   toDuplication : M,
+                                   c-di-GMP-internal : C > REST, 0, POP) =
+               < s(POP) : Bacterium | state : S,
+                                      toDuplication : if M > 0 then M else LIFE-DURATION fi,
+                                      c-di-GMP-internal : C >
+               starvation(REST, 0, s(POP)) .
+
+  op calculate-c-di-GMP : Nat -> Nat .
+
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-0 if N >= 100 and N < 120 .
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-20 if N >= 80 and N < 100 .
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-40 if N >= 60 and N < 80 .
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-60 if N >= 40 and N < 60 .
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-80 if N >= 20 and N < 40 .
+  ceq calculate-c-di-GMP(N) = C-DI-GMP-100 if N >= 0 and N < 20 .
+  eq calculate-c-di-GMP(N) = C-DI-GMP-120 [owise] .
+
+
+  crl [initial-population-creation] :
+    {BACTERIA
+     < P : Population | state : creation,
+                        size : N,
+                        planktonic-cells : N,
+                        c-di-GMP-global : C >}
+  =>
+    {BACTERIA
+     < s(N) : Bacterium | state : planktonic,
+                          toDuplication : LIFE-LEFT,
+                          c-di-GMP-internal : INITIAL-C-DI-GMP >
+     < P : Population | state : creation,
+                        size : s(N),
+                        planktonic-cells : s(N),
+                        c-di-GMP-global : C + INITIAL-C-DI-GMP >}
+  if N < INITIAL-POPULATION /\
+     ASSIGNED-AGE := (s(N) rem (LIFE-DURATION quo TIME-GRANULARITY)) * TIME-GRANULARITY /\
+     LIFE-LEFT := LIFE-DURATION monus ASSIGNED-AGE /\
+     INITIAL-C-DI-GMP := calculate-c-di-GMP(LIFE-LEFT) .
+
+
+  crl [initial-population] :
+    {BACTERIA
+     < P : Population | state : creation,
+                        size : N >}
+  =>
+    {BACTERIA
+     < P : Population | state : next-time,
+                        size : N >}
+  if N >= INITIAL-POPULATION .
+
+
+  crl [possible-biofilm-formation] :
+    {BACTERIA
+     < P : Population | state : next-time,
+                        size : N,
+                        planktonic-cells : NP,
+                        sessile-cells : NS,
+                        c-di-GMP-global : C,
+                        biofilm : BOOL >}
+  =>
+    {NEW-BACTERIA
+     < P : Population | state : ready-to-reproduce,
+                        size : N,
+                        planktonic-cells : countCells(NEW-BACTERIA, planktonic),
+                        sessile-cells : countCells(NEW-BACTERIA, sessile),
+                        c-di-GMP-global : C,
+                        biofilm : (C >= C-DI-GMP-THRESHOLD-BIOFIM) >}
+  if NEW-BACTERIA := changeState(BACTERIA) .
+
+
+  crl [reproduction] :
+    {BACTERIA
+     < P : Population | state : ready-to-reproduce,
+                        size : N,
+                        planktonic-cells : NP,
+                        sessile-cells : NS,
+                        c-di-GMP-global : C,
+                        biofilm : BOOL >}
+  =>
+    {NEW-BACTERIA
+     < P : Population | state : attributes-updated,
+                        size : NEW-NP + NEW-NS,
+                        planktonic-cells : NEW-NP,
+                        sessile-cells : NEW-NS,
+                        c-di-GMP-global : NEW-C-DI-GMP,
+                        biofilm : (NEW-C-DI-GMP >= C-DI-GMP-THRESHOLD-BIOFIM) >}
+  if N <= REPRODUCTION-THRESHOLD /\
+     NEW-BACTERIA := mitoses(BACTERIA, N) /\
+     NEW-NP := countCells(NEW-BACTERIA, planktonic) /\
+     NEW-NS := countCells(NEW-BACTERIA, sessile) /\
+     NEW-C-DI-GMP := count-c-di-GMP(NEW-BACTERIA) .
+
+
+  crl [rename] :
+    {BACTERIA
+     < P : Population | size : N,
+                        state : ready-to-reproduce >}
+  =>
+    {rename(BACTERIA)
+     < P : Population | size : N,
+                        state : ready-to-die >}
+  if N > REPRODUCTION-THRESHOLD .
+
+
+  crl [death] :
+    {BACTERIA
+     < P : Population | state : ready-to-die,
+                                size : N,
+                                planktonic-cells : NP,
+                                sessile-cells : NS,
+                                c-di-GMP-global : C,
+                                biofilm : BOOL >}
+  =>
+    {NEW-BACTERIA
+     < P : Population | state : attributes-updated,
+                        size : NEW-NP + NEW-NS,
+                        planktonic-cells : NEW-NP,
+                        sessile-cells : NEW-NS,
+                        c-di-GMP-global : NEW-C-DI-GMP,
+                        biofilm : (C >= C-DI-GMP-THRESHOLD-BIOFIM) >}
+  if M := ((N * DEATH-RATE * TIME-GRANULARITY) quo 100) quo LIFE-DURATION /\
+     NEW-BACTERIA := starvation(BACTERIA, M, 0) /\
+     NEW-NP := countCells(NEW-BACTERIA, planktonic) /\
+     NEW-NS := countCells(NEW-BACTERIA, sessile) /\
+     NEW-C-DI-GMP := count-c-di-GMP(NEW-BACTERIA) .
+
+endtom)
+
+
+(tomod TIMED is
+
+  including EVOLUTION .
+
+  op idle : Configuration Time -> Configuration .
+
+  vars B C : Nat .
+  var P : Oid .
+  vars T T1 : Time .
+  vars REST BACTERIA : Configuration .
+
+  eq idle(none, T1) = none .
+  eq idle(< B : Bacterium |
+              toDuplication : T,
+              c-di-GMP-internal : C > REST, T1) =
+          < B : Bacterium |
+              toDuplication : T monus T1,
+              c-di-GMP-internal : calculate-c-di-GMP(T monus T1) > idle(REST, T1) .
+  eq idle(< P : Population | > REST, T1) = < P : Population | > idle(REST, T1) .
+
+  rl [tick] :
+    {BACTERIA
+     < P : Population | state : attributes-updated >}
+  =>
+    {idle(BACTERIA, TIME-GRANULARITY)
+     < P : Population | state : next-time >}
+    in time TIME-GRANULARITY .
+
+endtom)
+
+
+(tomod TIMED-INTERVENTION is
+
+  including EVOLUTION .
+
+  op TIME-BETWEEN-INTERVENTIONS : -> TimeInf .
+  eq TIME-BETWEEN-INTERVENTIONS = 160 .
+---  eq TIME-BETWEEN-INTERVENTIONS = 170 .
+
+  class Intervention | next-intervention : TimeInf .
+  subclass Intervention < Population .
+
+  op idle : Configuration Time -> Configuration .
+
+  vars B C : Nat .
+  vars P I : Oid .
+  vars T T1 : Time .
+  var TINF : TimeInf .
+  vars REST BACTERIA : Configuration .
+
+  eq idle(none, T1) = none .
+  eq idle(< B : Bacterium |
+              toDuplication : T,
+              c-di-GMP-internal : C > REST, T1) =
+          < B : Bacterium |
+              toDuplication : T monus T1,
+              c-di-GMP-internal : calculate-c-di-GMP(T monus T1) > idle(REST, T1) .
+  eq idle(< P : Population | > REST, T1) = < P : Population | > idle(REST, T1) .
+
+
+  crl [tick-without-intervention] :
+    {BACTERIA
+     < I : Intervention | next-intervention : TINF,
+                          state : attributes-updated >}
+  =>
+    {idle(BACTERIA, TIME-GRANULARITY)
+     < I : Intervention | next-intervention : TINF monus TIME-GRANULARITY,
+                          state : next-time >}
+    in time TIME-GRANULARITY
+  if TINF > 0 .
+
+
+  rl [tick-with-intervention] :
+    {BACTERIA
+     < I : Intervention | next-intervention : 0,
+                          state : attributes-updated >}
+  =>
+    {< I : Intervention | next-intervention : TIME-BETWEEN-INTERVENTIONS,
+                          state : creation,
+                          size : 0,
+                          planktonic-cells : 0,
+                          sessile-cells : 0,
+                          c-di-GMP-global : 0,
+                          biofilm : false >}
+    in time TIME-GRANULARITY .
+
+endtom)
+
+(tomod P-AERUGINOSA is
+
+  including TIMED .
+
+  op init : -> Configuration .
+  op P-aeruginosa : -> Oid .
+
+  eq init = < P-aeruginosa : Population | state : creation,
+                                          size : 0,
+                                          planktonic-cells : 0,
+                                          sessile-cells : 0,
+                                          c-di-GMP-global : 0,
+                                          biofilm : false > .
+
+endtom)
+
+
+(tomod P-AERUGINOSA-INTERVENTION is
+
+  including TIMED-INTERVENTION .
+
+  op init : -> Configuration .
+  op P-aeruginosa : -> Oid .
+
+  eq init = < P-aeruginosa : Intervention |
+                                            next-intervention : TIME-BETWEEN-INTERVENTIONS,
+                                            state : creation,
+                                            size : 0,
+                                            planktonic-cells : 0,
+                                            sessile-cells : 0,
+                                            c-di-GMP-global : 0,
+                                            biofilm : false > .
+
+endtom)
+
+
+---(tfrew [1000000] in P-AERUGINOSA : {init} in time <= 1000 .)
+
+---(tsearch [3] {init} =>*
+---    {C:Configuration
+---     < P-aeruginosa : Population | state : attributes-updated, biofilm : true >}
+---with no time limit .)
+
+
+---(tsearch [3] {init} =>*
+---    {C:Configuration
+---     < P-aeruginosa : Population | state : attributes-updated,
+---                                   biofilm : true >}
+---in time-interval between >= 240 and <= 240 .)
+
+---(tsearch [1] in P-AERUGINOSA : {init} =>*
+---    {C:Configuration
+---     < P-aeruginosa : Population | state : attributes-updated,
+---                                   biofilm : false >}
+---in time >= 170 .)
+
+---(tfrew [1000000] in P-AERUGINOSA-INTERVENTION : {init} in time <= 170 .)
+
+---(tsearch [1] in P-AERUGINOSA-INTERVENTION : {init} =>*
+---    {C:Configuration
+---     < P-aeruginosa : Intervention | state : attributes-updated,
+---                                     biofilm : true >}
+---in time <= 3000 .)
+
+(tsearch [1] in P-AERUGINOSA-INTERVENTION : {init} =>*
+    {C:Configuration
+     < P-aeruginosa : Intervention | state : attributes-updated,
+                                     biofilm : true >}
+with no time limit .)
