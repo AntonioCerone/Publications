@@ -1,0 +1,29 @@
+--- This specific module defines the "perc" and "act" predicates of the ATM case study
+
+mod ATM-PREDS is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   including SATISFACTION .
+   
+   subsort Configuration < State .
+   
+   ops newInteraction cardReturned cardCollected cashGiven cashCollected : -> Prop .
+
+   var T : Task .
+   var STM : ShortTermMemory .
+   var A : Action .
+   var N : Nat .
+   var TR : Trans .
+   var TRS : TransSet .
+   var IS : InterfaceState .
+   var P : Prop .
+   var C : Configuration .
+   
+   eq TASK: T ; INTERFACE: { TR TRS | A >> perc( 'cardR ) ! N } ; STM: STM |= newInteraction = true .
+   eq TASK: T ; INTERFACE: { TR TRS | A >> perc( 'cardO ) ! N } ; STM: STM |= cardReturned = true .
+   eq TASK: T ; INTERFACE: { TR TRS | act( 'cardC ) >> IS } ; STM: STM |= cardCollected = true .
+   eq TASK: T ; INTERFACE: { TR TRS | A >> perc( 'cashO ) ! N } ; STM: STM |= cashGiven = true .
+   eq TASK: T ; INTERFACE: { TR TRS | act( 'cashC ) >> IS } ; STM: STM |= cashCollected = true .  
+   eq C |= P = false [owise] .
+  
+endm

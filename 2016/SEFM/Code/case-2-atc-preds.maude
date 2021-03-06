@@ -1,0 +1,28 @@
+--- This specific module defines the "cogn" predicates of the ATC case study
+
+mod ATC-PREDS is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   including SATISFACTION .
+   
+   subsort Configuration < State .
+   
+   ops s p n c r d i a : -> Prop .
+
+   var T : Task .
+   var STM : ShortTermMemory .
+   var INT : Interface .
+   var P : Prop .
+   var C : Configuration .
+   
+   eq TASK: T ; INTERFACE: INT ; STM: STM , cogn( 'scan ) |= s = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , cogn( 'identifyPart ) |= p = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , info( 'non-conflict ) |= n = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , info( 'conflict ) |= c = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , cogn( 'reclassify ) |= r = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , cogn( 'decide ) |= d = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , cogn( 'intend ) |= i = true .
+   eq TASK: T ; INTERFACE: INT ; STM: STM , info( 'act ) |= a = true .   
+   eq C |= P = false [owise] .
+  
+endm

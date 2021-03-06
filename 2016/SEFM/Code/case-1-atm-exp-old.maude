@@ -1,0 +1,19 @@
+--- This specific module defines the assess function (LTM information)
+--- for user experience with an OLD interface design of the ATM case study
+
+mod ATM-EXP-OLD is
+
+   including COGNITIVE-ARCHITECTURE .
+   
+   var P : Perception .
+   var A : Action .
+   
+   eq assess( act( 'cardI ) , perc( 'pinR ) )   = automaticity .
+   eq assess( act( 'pinI )  , perc( 'cashO ) )  = automaticity .
+   eq assess( act( 'cashC ) , perc( 'cardO ) )  = automaticity .
+   eq assess( act( 'cardC ) , perc( 'cardR ) )  = automaticity .
+   eq assess( act( 'pinI  ) , perc( 'cardO ) )  = danger .
+   eq assess( act( 'pinI  ) , perc( 'cardR ) )  = anger .
+   eq assess(A,P) = novelty [owise] .
+      
+endm

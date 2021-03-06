@@ -1,0 +1,18 @@
+--- This specific module defines the basic tasks and the goal of the ATM case study
+
+mod ATM-TASK is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   
+   op ATM-Task : -> Task .
+   
+   eq ATM-Task = [ noInfo | perc( 'cardR ) ==> act( 'cardI ) | info( 'cardB ) ]
+                 [ noInfo | perc( 'pinR ) ==> act( 'pinI ) | noInfo ]
+                 [ noInfo | perc( 'cashO ) ==> act( 'cashC ) | noInfo ]
+                 [ info( 'cardB ) | perc( 'cardO ) ==> act( 'cardC ) | noInfo ] .
+                 
+   op Goals : -> Goal .
+   
+   eq Goals = goal( act( 'cashC ) , achieve ) .
+   
+endm

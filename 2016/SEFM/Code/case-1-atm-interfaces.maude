@@ -1,0 +1,29 @@
+--- This specific module defines the the OLD and NEW interface designs of the ATM case study
+
+mod ATM-INTERFACES is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   
+   ops Old-ATM New-ATM : -> Interface .
+   
+   eq Old-ATM = { ( perc( 'cardR ) ! 0 -- act( 'cardI ) --> perc( 'pinR ) ! 1 )
+                  ( perc( 'pinR ) ! 1 -- act( 'pinI ) --> perc( 'cashO ) ! 1 )
+                  ( perc( 'cashO ) ! 1 -- act( 'cashC ) --> perc( 'cardO ) ! 1 )
+                  ( perc( 'cardO ) ! 1 -- act(  'cardC ) --> perc( 'cardR ) ! 0 )
+                  ( perc( 'pinR ) ! 2 -- noAction --> perc( 'cardO ) ! 1 )
+                  ( perc( 'cashO ) ! 2 -- noAction --> perc( 'cardO ) ! 1 )
+                  ( perc( 'cardO ) ! 2 -- noAction --> perc( 'cardR ) ! 0 ) |
+                  noAction >> perc( 'cardR ) ! 0
+                } .
+
+   eq New-ATM = { ( perc( 'cardR ) ! 0 -- act( 'cardI ) --> perc( 'pinR ) ! 1 )
+                  ( perc( 'pinR ) ! 1 -- act( 'pinI ) --> perc( 'cardO ) ! 1 )
+                  ( perc( 'cardO ) ! 1 -- act( 'cardC ) --> perc( 'cashO ) ! 1 )
+                  ( perc( 'cashO ) ! 1 -- act(  'cashC ) --> perc( 'cardR ) ! 0 )
+                  ( perc( 'pinR ) ! 2 -- noAction --> perc( 'cardO ) ! 1 )
+                  ( perc( 'cashO ) ! 2 -- noAction --> perc( 'cardR ) ! 0 )
+                  ( perc( 'cardO ) ! 2 -- noAction --> perc( 'cardR ) ! 0 ) |
+                  noAction >> perc( 'cardR ) ! 0
+                } .
+
+endm

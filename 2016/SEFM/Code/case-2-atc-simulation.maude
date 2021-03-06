@@ -1,0 +1,18 @@
+--- This specific module defines performs the simulation of the ATC case study
+
+mod ATC-SIMULATION is
+  
+  protecting COGNITIVE-ARCHITECTURE .
+  
+  protecting ATC-TASK .
+  protecting ATC-INTERFACE .
+  
+  op ATC : -> Configuration .
+  
+  eq ATC = TASK: ATC-Task ;
+                INTERFACE: ATC-INTERFACE ;
+                STM: Goals,cogn( 'scan ) .
+  
+endm
+
+frew [1] ATC .

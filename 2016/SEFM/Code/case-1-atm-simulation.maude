@@ -1,0 +1,27 @@
+--- This specific module defines performs the simulation of the ATM case study
+
+mod ATM-SIMULATION is
+  
+  protecting COGNITIVE-ARCHITECTURE .
+  
+  protecting ATM-TASK .
+  protecting ATM-INTERFACES .
+---  protecting ATM-EXP-OLD .
+  protecting ATM-EXP-NEW .
+  
+  ops Conf-Old Conf-New : -> Configuration .
+  
+  eq Conf-Old = TASK: ATM-Task ;
+                INTERFACE: Old-ATM ;
+                STM: Goals .
+                                    
+  eq Conf-New = TASK: ATM-Task ;
+                INTERFACE: New-ATM ;
+                STM: Goals .
+                
+---  eq Conf-Init = Conf-Old .
+  eq Conf-Init = Conf-New .
+  
+endm
+
+frew [1] Conf-Init .

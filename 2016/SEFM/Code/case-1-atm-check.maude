@@ -1,0 +1,32 @@
+--- This specific module defines the formulae to check the properties of the
+--- ATM case study and performs the model checking
+
+mod ATC-CHECK is
+
+  protecting ATM-PREDS .
+  including MODEL-CHECKER .
+  including LTL-SIMPLIFIER .
+  
+  protecting ATM-TASK .
+  protecting ATM-INTERFACES .
+---  protecting ATM-EXP-OLD .    --- user experienced with the OLD design  
+  protecting ATM-EXP-NEW .    --- user experienced with the NEW design    
+  
+  ops Conf-Old Conf-New : -> Configuration .
+  
+  eq Conf-Old = TASK: ATM-Task ;
+                INTERFACE: Old-ATM ;
+                STM: Goals .
+                    
+  eq Conf-New = TASK: ATM-Task ;
+                INTERFACE: New-ATM ;
+                STM: Goals .
+
+---  eq Conf-Init = Conf-Old .     --- OLD design of the interface
+  eq Conf-Init = Conf-New .     --- NEW design of the interface
+  
+endm
+
+red modelCheck(Conf-Init, [] ( cardReturned -> ( ~ newInteraction U cardCollected ) ) ) .
+
+red modelCheck(Conf-Init, [] ( cashGiven -> ( ~ newInteraction U cashCollected ) ) ) .

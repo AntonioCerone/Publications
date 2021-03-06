@@ -1,0 +1,27 @@
+--- This generic module defines the basic sorts that model
+--- perceptions, actions and information that can be stored
+--- in the STM.
+ 
+mod ENTITIES is
+
+   protecting QID .
+   protecting NAT .
+
+   sorts InterType Action Perception Information .
+   sorts Goal Cognitive .
+   subsorts Goal Cognitive < Information .
+   
+   op noPerception : -> Perception [ctor] .    --- "none" for perceptions
+   op perc : Qid -> Perception [ctor] .
+   
+   op noAction : -> Action [ctor] .            --- "none" for action
+   op act : Qid -> Action [ctor] .
+   op noInfo : -> Information [ctor] .         --- "none" for information
+   op info : Qid -> Information [ctor] .       --- action reference
+   op cogn : Qid -> Cognitive [ctor] .         --- cognitive state
+   
+   op achieve : -> InterType [ctor] .
+   op preserve : -> InterType [ctor] .
+   op goal : Action InterType -> Goal [ctor] . --- task goal
+  
+endm

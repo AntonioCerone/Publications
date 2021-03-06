@@ -1,0 +1,14 @@
+--- This specific module defines the interface of the ATC case study
+
+mod ATC-INTERFACE is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   
+   ops ATC-INTERFACE : -> Interface .
+   
+   eq ATC-INTERFACE = { ( perc( 'anomaly ) ! 0 -- act( 'action ) --> perc( 'normal ) ! 0 )
+                        ( perc( 'normal ) ! 0 -- noAction --> perc( 'anomaly ) ! 0 )
+                        | noAction >> perc( 'anomaly ) ! 0
+                      } .
+
+endm

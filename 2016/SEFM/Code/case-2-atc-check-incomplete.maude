@@ -1,0 +1,36 @@
+--- This specific module defines the formulae to check the soundness and completeness
+--- of the first decomposition (which results sound but incomplete) of the ATC task failure
+--- and performs the model checking
+
+mod ATC-CHECK is
+
+  protecting ATC-PREDS .
+  including MODEL-CHECKER .
+  including LTL-SIMPLIFIER .
+  
+  protecting ATC-TASK .
+  protecting ATC-INTERFACE .
+
+  op ATC : -> Configuration .
+  
+  eq ATC = TASK: ATC-Task ;
+           INTERFACE: ATC-INTERFACE ;
+           STM: cogn( 'scan ) .
+
+endm
+
+red modelCheck(ATC, ([] ~ p) -> ([] ~ i)) .
+
+red modelCheck(ATC, ((<> p) /\ ([] (p \/ c -> O n))) -> ([] ~ i)) .
+
+red modelCheck(ATC, ((<> c) /\ ([] (c -> O s))) -> ([] ~ i)) .
+
+red modelCheck(ATC, ((<> d) /\ ([] (d -> O s))) -> ([] ~ i)) .
+
+red modelCheck(ATC, ([] ~ i) -> (([] ~ p) \/
+                                 ((<> p) /\ ([] (p \/ c -> O n))) \/
+                                 ((<> c) /\ ([] (c -> O s))) \/
+                                 ((<> d) /\ ([] (d -> O s)))
+                                )
+              ) .
+

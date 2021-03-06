@@ -1,0 +1,130 @@
+--- This generic module defines the structure of tasks, STM, LTM and
+--- interfaces (including the current interface state, defined
+--- separately in the paper), and the MAUDE rewrite rules that work
+--- on such structures.
+
+mod COGNITIVE-ARCHITECTURE is
+
+   protecting ENTITIES .
+
+--- TASK definition
+
+   sorts BasicTask Task .
+   subsort BasicTask < Task .
+   
+   op [_|_==>_|_] : Information Perception Action Information -> BasicTask [ctor] .   
+   op noTask : -> Task [ctor] .
+   op __ : Task Task -> Task [ctor assoc comm prec 32 id: noTask] .
+   
+--- STM definition
+
+   sort ShortTermMemory .
+   subsort Information < ShortTermMemory .
+       
+   op _,_ : ShortTermMemory ShortTermMemory -> ShortTermMemory [ctor comm assoc prec 32 id: noInfo] .
+
+--- INTERFACE definition
+
+   sorts InterfaceState Trans TransSet Interface .
+   subsort Trans < TransSet .
+   
+   op _!_ : Perception Nat -> InterfaceState [ctor prec 28] .
+   op (_--_-->_) : InterfaceState Action InterfaceState -> Trans [ctor prec 30] .
+   op noTrans : -> TransSet [ctor] .
+   op __ : TransSet TransSet -> TransSet [ctor comm assoc prec 32 id: noTrans] .
+   op {_|_>>_} : TransSet Action InterfaceState -> Interface [ctor prec 34] .
+   op emptyInterface : -> Interface .
+   op expired : InterfaceState -> InterfaceState .
+
+--- VARIABLE declaration
+   
+   vars P P1 P2 : Perception .
+   vars M N : Nat .
+   var IS : InterfaceState .
+
+--- FUNCTION for TIMEOUT EXPIRATION
+      
+   ceq expired( P ! N ) = P ! s(N) if N > 0 .
+   eq expired( IS ) = IS [owise] .
+
+--- ASSESSMENT (LTL) definition
+
+   sort Assessment .
+   
+   ops noAssessment automaticity attention novelty danger anger decision : -> Assessment [ctor] .
+   op assess : Action Perception -> Assessment .
+
+--- CONFIGURATION definition
+      
+   sort Configuration .
+   
+   op TASK: _; INTERFACE: _; STM:_ : Task Interface ShortTermMemory -> Configuration [ctor prec 36] .
+   
+   op Conf-Init : -> Configuration .   --- initial configuration declaration
+
+--- VARIABLE declaration
+   
+   var T : Task .
+   var TRS : TransSet .
+   vars A A1 A2 : Action .
+   var INT : Interface .
+   var I : InterType .
+   vars INF1 INF2 : Information .
+   var STM : ShortTermMemory .
+   
+--- REWRITE RULE definition
+   
+   crl [INTERACTING] :
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A >> (P1 ! M) } ;
+        STM: STM,INF1,goal(A2,I) => 
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A1 >> (P2 ! N) } ;
+        STM: STM,INF2,goal(A2,I)
+     if M < 2 .
+                    
+   crl [CLOSURE] :
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A >> (P1 ! M) } ;
+        STM: STM,INF1,goal(A1,achieve) => 
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A1 >> (P2 ! N) } ;
+        STM: INF2
+     if M < 2 .
+        
+    crl [DANGER] :
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A >> (P1 ! M) } ;
+        STM: STM,INF1,goal(A2,achieve) => 
+     TASK: T [ INF1 | P1 ==> A1 | INF2 ] ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A1 >> expired( (P2 ! N) ) } ;
+        STM: INF2
+     if M < 2 /\ assess(A,P1) = danger .
+ 
+   crl [TIMEOUT] :
+     TASK: T ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A >> (P1 ! M) } ;
+        STM: STM => 
+     TASK: T ;
+        INTERFACE: { (P1 ! M) -- A1 --> (P2 ! N) TRS | A1 >> (P2 ! N) } ;
+        STM: STM
+     if M > 1 .
+
+   rl [COGNITIVE] :
+     TASK: T [ INF1 | P1 ==> noAction | INF2 ] ;
+        INTERFACE: INT ;
+        STM: STM,INF1 => 
+     TASK: T [ INF1 | P1 ==> noAction | INF2 ] ;
+        INTERFACE: INT ;
+        STM: STM,INF2 .
+
+   crl [DECISION] :
+     TASK: T [ INF1 | P1 ==> noAction | INF2 ] ;
+        INTERFACE: INT ;
+        STM: STM,INF1 => 
+     TASK: T [ INF1 | P1 ==> noAction | INF2 ] ;
+        INTERFACE: INT ;
+        STM: STM,INF2
+     if assess(noAction,P1) = decision .
+
+endm

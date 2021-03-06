@@ -1,0 +1,25 @@
+--- This specific module defines the basic tasks and the goal of the ATC case study
+
+mod ATC-TASK is
+
+   protecting COGNITIVE-ARCHITECTURE .
+   
+   op ATC-Task : -> Task .
+   
+   eq ATC-Task = [ cogn( 'scan ) | noPerception ==> noAction | cogn( 'identifyPart ) ]
+                 [ cogn( 'identifyPart ) | perc( 'anomaly ) ==> noAction | info( 'conflict ) ]
+                 [ cogn( 'identifyPart ) | perc( 'normal ) ==> noAction | info( 'non-conflict ) ]
+                 [ info( 'conflict ) | perc( 'anomaly ) ==> noAction | cogn( 'scan ) ]
+                 [ info( 'non-conflict ) | noPerception ==> noAction | cogn( 'scan ) ]
+                 [ info( 'conflict ) | perc( 'anomaly ) ==> noAction | cogn( 'decide ) ]
+                 [ info( 'conflict ) | perc( 'anomaly ) ==> noAction | cogn( 'reclassify ) ]
+                 [ cogn( 'reclassify ) | perc( 'anomaly ) ==> noAction | cogn( 'scan ) ]
+                 [ cogn( 'decide ) | perc( 'anomaly ) ==> noAction | cogn( 'scan ) ]
+                 [ cogn( 'decide ) | perc( 'anomaly ) ==> noAction | cogn( 'intend ) ]
+                 [ cogn( 'intend ) | perc( 'anomaly ) ==> act( 'action ) | cogn( 'scan ) ] .
+       
+   op Goals : -> Goal .
+   
+   eq Goals = goal( act( 'action ) , preserve ) .
+   
+   endm
