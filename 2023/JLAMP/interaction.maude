@@ -1,0 +1,181 @@
+mod BASIC-SORT-DEF is
+
+   sorts SystemState SystemAction HumanAction Action .
+   sorts InfoPiece Perception .
+
+   subsorts SystemAction HumanAction < Action .
+
+   op noAct : -> SystemAction [ctor] .
+   op noPerc : -> Perception [ctor] .
+
+endm
+
+
+mod LTS-DEF is
+
+    including BASIC-SORT-DEF .
+
+    sorts Transition LTS Configuration .
+    subsort Transition < LTS .
+    op _--_->_ : SystemState SystemAction SystemState -> Transition [ctor] .
+    op none : -> LTS [ctor] .
+    op _;_ : LTS LTS -> LTS [ctor comm assoc id: none] .
+    op {_}`[_] : LTS SystemState -> Configuration . ---
+
+    vars S T : SystemState .
+    var A : SystemAction .
+    var M : LTS .
+
+    rl [LTS-evolution] :
+        { (S -- A -> T) ; M } [ S ] => { (S -- A -> T) ; M } [ T ] .
+
+endm
+
+
+mod EXAMPLE-LTS is
+
+    including LTS-DEF .
+
+    ops source target : -> SystemState .
+    op action : -> SystemAction .
+
+endm
+
+
+frew [1] { source -- action -> target } [ source ] .
+
+
+mod HUMAN-DEF is
+
+    including LTS-DEF .
+
+    sorts Information BehaviouralRule LTM .
+    subsort BehaviouralRule < LTM .
+    subsort InfoPiece < Information .
+    subsort Perception < SystemState .
+
+    op noInfo : -> Information [ctor] .
+    op __ : Information Information -> Information
+                                  [ctor comm assoc id: noInfo] .
+    op _|>_=>_>|_ : Information Perception Action Information
+                                     -> BehaviouralRule [ctor] .
+    op blank : -> LTM [ctor] .
+    op __ : LTM LTM -> LTM [ctor comm assoc id: blank] .
+    op [STM:_||`LTM:_|]`{_}`[_] : Information LTM LTS SystemState
+                                     -> Configuration [ctor] .
+    var P : Perception .
+    vars S T : SystemState .
+    var A : SystemAction .
+    var H : HumanAction .
+    var M : LTS .
+    vars IR IS MS : Information .
+    var ML : LTM .
+
+
+    crl [interaction_perc] :
+       [STM: IR MS || LTM: (IR |> P => A >| IS) ML |]
+       { (P -- A -> T) ; M } [ P ]
+    =>
+       [STM: IS MS || LTM: (IR |> P => A >| IS) ML |]
+       { (P -- A -> T) ; M } [ T ]
+    if A =/= noAct /\ P =/= noPerc .
+
+
+    crl [interaction_act_only] :
+       [STM: IR MS || LTM: (IR |> noPerc => A >| IS) ML |]
+       { (S -- A -> T) ; M } [ S ]
+    =>
+       [STM: IS MS || LTM: (IR |> noPerc => A >| IS) ML |]
+       { (S -- A -> T) ; M } [ T ]
+    if A =/= noAct .
+
+
+    crl [attention] :
+       [STM: IR MS || LTM: (IR |> P => noAct >| IS) ML |]
+       { M } [ P ]
+    =>
+       [STM: IS MS || LTM: (IR |> P => noAct >| IS) ML |]
+       { M } [ P ]
+    if P =/= noPerc .
+
+
+    rl [reasoning] :
+       [STM: IR MS || LTM: (IR |> noPerc => noAct >| IS) ML |]
+       { M } [ T ]
+    =>
+       [STM: IS MS || LTM: (IR |> noPerc => noAct >| IS) ML |]
+       { M } [ T ] .
+
+
+    rl [human] :
+       [STM: IR MS || LTM: (IR |> noPerc => H >| IS) ML |]
+       { M } [ T ]
+    =>
+       [STM: IS MS || LTM: (IR |> noPerc => H >| IS) ML |]
+       { M } [ T ] .
+
+
+    rl [internal] :
+       [STM: MS || LTM: ML |] { (S -- noAct -> T) ; M } [ P ]
+    =>
+       [STM: MS || LTM: ML |] { (S -- noAct -> T) ; M } [ T ] .
+
+
+endm
+
+
+mod EXAMPLE-INTERACTION is
+
+    including EXAMPLE-LTS .
+    including HUMAN-DEF .
+
+    ops oldInfo newInfo otherInfo : -> InfoPiece .
+    op perception : -> Perception .
+    op human : -> HumanAction .
+
+    op interactionLTM : -> LTM .
+    eq interactionLTM = oldInfo |> perception => action >| newInfo .
+
+    op onlyactionLTM : -> LTM .
+    eq onlyactionLTM = oldInfo |> noPerc => action >| newInfo .
+
+    op attentionLTM : -> LTM .
+    eq attentionLTM = oldInfo |> perception => noAct >| newInfo .
+
+    op reasoningLTM : -> LTM .
+    eq reasoningLTM = oldInfo |> noPerc => noAct >| newInfo .
+
+    op humanLTM : -> LTM .
+    eq humanLTM = oldInfo |> noPerc => human >| newInfo .
+
+endm
+
+
+frew [1] [STM: noInfo || LTM: blank |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule interaction
+frew [1] [STM: oldInfo otherInfo || LTM: interactionLTM |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule action
+frew [1] [STM: oldInfo otherInfo || LTM: onlyactionLTM |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule attention
+frew [1] [STM: oldInfo otherInfo || LTM: attentionLTM |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule reasoning
+frew [1] [STM: oldInfo otherInfo || LTM: reasoningLTM |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule human
+frew [1] [STM: oldInfo otherInfo || LTM: humanLTM |] { perception -- action -> target } [ perception ] .
+
+
+--- Rewrite Rule internal
+frew [1] [STM: oldInfo otherInfo || LTM: interactionLTM |] { perception -- noAct -> target } [ perception ] .
+
+
+
