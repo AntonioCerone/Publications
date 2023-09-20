@@ -1,0 +1,591 @@
+load untimed-evolution.maude
+
+(fmod MAYBE{X :: TRIV} is
+    sort Maybe{X} .
+
+    subsort X$Elt < Maybe{X} .
+
+    op maybe : -> Maybe{X} [ctor] .
+endfm)
+
+---(
+    A module extending ENTITIES to define system rules and states to include
+    items with variables (generics)
+)
+(fmod GENERIC-ENTITIES is
+    extending ENTITIES .
+
+    --- generic is an item containing variables
+    sort GenericItem .
+    sort GenericInfo .
+    --- generic information is a supersort of normal information
+    subsort GenericItem < GenericInfo .
+    subsort Information < GenericInfo .
+    
+    --- generics also include simple information, which is basically
+    --- param(value) <=> param(var given var == value)
+    subsort InfoItem < GenericItem .
+
+    --- operators extending LTS parameters for compatibility
+    op _`,_ : GenericInfo GenericInfo -> GenericInfo [ctor comm assoc id: noInfo prec 10] .
+
+    op `[_`] : GenericInfo -> Invisible [ctor] .
+
+    op __--_->__ : GenericInfo Invisible Event GenericInfo Invisible
+                        -> SystemRule [ctor] .
+endfm)
+
+(view Information from TRIV to GENERIC-ENTITIES is
+    sort Elt to Information .
+endv)
+
+(view InfoItem from TRIV to GENERIC-ENTITIES is
+    sort Elt to InfoItem .
+endv)
+
+
+(fmod MATCHING is
+    --- matching is a set of variable assignments
+    sort MatchingItem .
+    sort Matching .
+    subsort MatchingItem < Matching .
+    
+    sort Variable .
+    sort Value .
+
+    --- variable assignment
+    op _:=_ : Variable Value -> MatchingItem [ctor prec 50] .
+
+    op noMatch : -> Matching [ctor] .
+    op _;_ : Matching Matching -> Matching [ctor comm assoc id: noMatch prec 51] .
+endfm)
+
+(view Matching from TRIV to MATCHING is
+    sort Elt to Matching .
+endv)
+
+
+
+---(
+    This module defines how information is matched against generics (burger(1) against burger(a)).
+    It defines iterations over information and consecutive resolution.
+    However, it does not implement any format of how variables should be used.
+    If importing this module, you must implement by yourself these two operators:
+        1. matchItem - to assign variables of GenericItem according to an InfoItem (create Matching)
+        2. resolveItem - to generate InfoItem out of GenericItem using Matching
+    
+    How variables and generics behave must be implemented in add-on modules and this module
+    should not be used in BRDL cases directly.
+)
+(fmod GENERICS is
+    protecting MATCHING .
+    protecting GENERIC-ENTITIES .
+    protecting (MAYBE * (op maybe to failResolveItem)){InfoItem} .
+    protecting (MAYBE * (op maybe to failResolve)){Information} .
+    protecting (MAYBE * (op maybe to failMatch)){Matching} .
+
+    
+    --- generate new state based on a given info, lhs and rhs of an lts rule 
+    op resolveState : Information GenericInfo GenericInfo -> Maybe{Information} .
+    --- check if the given info matches lhs and can be resolved into rhs 
+    op checkState : Information GenericInfo GenericInfo -> Bool .
+
+    
+    --- generate matching out of previous variable matchings, info and lhs of a rule
+    op genericMatch`(_`,_`,_`) : Matching Information GenericInfo -> Maybe{Matching} [prec 0 gather (& e e) format(d d d d r! o b! o d)] .
+    --- generate new state based on variable matchings and rhs of a rule
+    op resolveGeneric : Matching GenericInfo -> Maybe{Information} .
+
+--- TO EXTEND:
+    op matchItem : Matching InfoItem GenericItem -> Maybe{Matching} .
+    op resolveItem : Matching GenericItem -> Maybe{InfoItem} .
+    
+
+    var INFO : Information .
+    vars GENERIC GENERIC' : GenericInfo .
+    var ITEM : GenericItem .
+    var INFOITEM : InfoItem .
+    vars MATCH MATCH' : Matching .
+    vars MATCHITEM MATCHITEM' : MatchingItem .
+
+    ceq resolveState(INFO, GENERIC, GENERIC') 
+        = resolveGeneric( genericMatch( noMatch, INFO, GENERIC ), GENERIC' ) 
+    if resolveGeneric( genericMatch( noMatch, INFO, GENERIC ), GENERIC' ) :: Information .
+
+
+    ceq checkState(INFO, GENERIC, GENERIC') = true
+    if resolveState(INFO, GENERIC, GENERIC') :: Information .
+
+    eq checkState(INFO, GENERIC, GENERIC') = false [owise] .
+
+    --- MATCHING INFORMATION
+
+    --- if there are different number of items, matching fails
+    eq genericMatch(MATCH, (noInfo), (ITEM, GENERIC)) = failMatch .
+    eq genericMatch(MATCH, (INFOITEM, INFO), noInfo) = failMatch .
+
+    --- no matchings for empty information
+    eq genericMatch(MATCH, noInfo, noInfo) = noMatch .
+
+    --- match two random items of both sets and match remainings
+    --- only if results are successful
+    ceq genericMatch(MATCH, (INFOITEM, INFO), (ITEM, GENERIC)) 
+        = matchItem(MATCH, INFOITEM, ITEM);
+            genericMatch(
+                (MATCH); matchItem(MATCH, INFOITEM, ITEM), 
+                INFO, 
+                GENERIC
+            )
+    if matchItem(MATCH, INFOITEM, ITEM) :: Matching 
+    /\ genericMatch(
+                (MATCH); matchItem(MATCH, INFOITEM, ITEM), 
+                INFO, 
+                GENERIC
+            ) :: Matching
+    .
+
+    eq genericMatch(MATCH, INFO, GENERIC) = failMatch [owise] .
+
+
+    --- RESOLUTION USING MATCHING
+
+    --- we fail resolution if we could not create matching
+    eq resolveGeneric(failMatch, GENERIC) = failResolve .
+
+    --- the resolution fails if any item in the generic can not resolve
+    ceq resolveGeneric(MATCH, (ITEM, GENERIC)) = failResolve
+    if not resolveItem(MATCH, ITEM) :: InfoItem or not resolveGeneric(MATCH, GENERIC) :: Information .
+
+    --- we iterate over generic and resolve every item
+    eq resolveGeneric(MATCH, (ITEM, GENERIC)) 
+        = resolveItem(MATCH, ITEM), resolveGeneric(MATCH, GENERIC) [owise] .
+
+    --- we stop when there is no info to resolve left
+    eq resolveGeneric(MATCH, noInfo) = noInfo .
+
+    --- no need to resolve a ready information without variables
+    eq matchItem(MATCH, INFOITEM, INFOITEM) = noMatch .
+    eq resolveItem(MATCH, INFOITEM) = INFOITEM .
+
+
+    --- DEFAULT VALUES.
+
+    eq matchItem(MATCH, INFOITEM, ITEM) = failMatch [owise] .
+    eq resolveItem(MATCH, ITEM) = failResolveItem [owise] .
+endfm)
+
+--- AGGREGATE ITEMS
+---(
+    This defines aggregates - information items in the form 
+    label(arg_1, arg_2, ..., arg_n) with n >= 0 and arg_i is either:
+        - ExactArgument - an exact value,
+        - GenericArgument - an expression containing variables
+    if all arguments are exact - then the aggregate is exact and can be used in a system state
+    otherwise, the aggregate is generic and can be used only in generic system rules
+)
+(fmod AGGREGATE is
+    --- generic argument contains variables (used in generic items)
+    sort GenericArgument .
+    sort GenericArgumentList .
+    subsorts GenericArgument < GenericArgumentList .
+
+    --- exact arguments are values (used in exact infoitems)
+    sort ExactArgument .
+    sort ExactArgumentList .
+    subsorts ExactArgument < ExactArgumentList .
+
+    --- exact arguments can be a part of generic arguments
+    subsort ExactArgument < GenericArgument .
+    subsort ExactArgumentList < GenericArgumentList .
+
+    --- Aggregate is a label that comes with arguments
+    sorts GenericAggregate ExactAggregate AggregateLabel .
+    subsort ExactAggregate < GenericAggregate .
+
+
+    --- default signature for an aggregate - aggr(arg_1, arg_2, ..., arg_n)
+    --- if arguments have variables, then it is generic
+    op _`(_`) : AggregateLabel GenericArgumentList -> GenericAggregate [ctor prec 0] .
+    --- if all arguments are values, then it is a information
+    op _`(_`) : AggregateLabel ExactArgumentList -> ExactAggregate [ditto] .
+    
+
+    op noArgs : -> ExactArgumentList [ctor] .
+
+    op _`,_ : ExactArgumentList ExactArgumentList -> ExactArgumentList [ctor assoc id: noArgs prec 70] .
+    op _`,_ : ExactArgumentList GenericArgumentList -> GenericArgumentList [ditto] .
+    op _`,_ : GenericArgumentList ExactArgumentList -> GenericArgumentList [ditto] .
+    op _`,_ : GenericArgumentList GenericArgumentList -> GenericArgumentList [ditto] .
+endfm)
+
+(view ExactArgument from TRIV to AGGREGATE is
+    sort Elt to ExactArgument .
+endv)
+
+(view ExactArgumentList from TRIV to AGGREGATE is
+    sort Elt to ExactArgumentList .
+endv)
+
+(view ExactAggregate from TRIV to AGGREGATE is
+    sort Elt to ExactAggregate .
+endv)
+
+
+---(
+    This module defines how aggregates are matched as generic items
+
+    The module needs to be extended, because it does not define how arguments are matched.
+    The extension requires to:
+        1. implement matchArgument
+        2. implement resolveArgument
+
+    Then, to use aggregates you do the following:
+        1. declare an AggregateLabel constant (op burger : -> AggregateLabel)
+        2. declare some Variable constants (op a : -> Variable)
+        3. extend a Value sort (subsort Int < Value)
+    
+    then you can use an aggregate with values in currentState,
+    and aggregate with variables in transition rules.
+
+    the module also serves as an example on how to extend GENERICS
+)
+(fmod GENERIC-AGGREGATE is
+    extending GENERICS .
+
+    protecting AGGREGATE .
+    protecting (MAYBE * (op maybe to failResolveArg)){ExactArgument} .
+    protecting (MAYBE * (op maybe to failResolveArgs)){ExactArgumentList} .
+    protecting (MAYBE * (op maybe to failResolveAggregate)){ExactAggregate} .
+    
+    subsort ExactAggregate < InfoItem .
+    subsort GenericAggregate < GenericItem .
+
+    --- implementing operators from GENERICS module
+    op matchAggregate : Matching ExactAggregate GenericAggregate -> Maybe{Matching} .
+    op resolveAggregate : Matching GenericAggregate -> Maybe{ExactAggregate} .
+
+--- TO IMPLEMENT FURTHER:
+    --- how exact arguments of an aggregate match generic arguments. 
+    op matchArgument : Matching ExactArgument GenericArgument -> Maybe{Matching} .
+    --- how arguments are resolved
+    op resolveArgument : Matching GenericArgument -> Maybe{ExactArgument} .
+
+    var A : AggregateLabel .
+    var EXARGLIST : ExactArgumentList .
+    var EXARG : ExactArgument .
+    var GENARGLIST : GenericArgumentList .
+    var GENARG : GenericArgument .
+    var N, N' : Value .
+    var V : Variable .
+    var MATCH : Matching .
+    var EXAGG : ExactAggregate .
+    var GENAGG : GenericAggregate .
+
+
+    --- implementing operators from GENERICS module
+    eq matchItem(MATCH, EXAGG, GENAGG) = matchAggregate(MATCH, EXAGG, GENAGG) .
+    eq resolveItem(MATCH, GENAGG) = resolveAggregate(MATCH, GENAGG) .
+
+    --- matching variables argument-wise and calling matchArgument for each pair of arguments
+    ceq matchAggregate(MATCH, A(EXARG, EXARGLIST), A(GENARG, GENARGLIST))
+    = 
+        MATCH ;
+        matchArgument(MATCH, EXARG, GENARG);
+        matchAggregate(MATCH, A(EXARGLIST), A(GENARGLIST))
+    if matchArgument(MATCH, EXARG, GENARG) :: Matching 
+    /\ matchAggregate(MATCH, A(EXARGLIST), A(GENARGLIST)) :: Matching .
+
+    --- successful match if there are no arguments to match
+    eq matchAggregate(MATCH, A(noArgs), A(noArgs)) = noMatch .
+
+    --- we fail if the numbers of arguments do not match
+    eq matchAggregate(MATCH, A(noArgs), A(GENARG, GENARGLIST)) = failMatch .
+    eq matchAggregate(MATCH, A(EXARG, EXARGLIST), A(noArgs)) = failMatch .
+
+
+    --- we resolve an aggregate by resolving each argument one by one
+    op resolveArgumentList : Matching GenericArgumentList -> Maybe{ExactArgumentList} .
+
+    ceq resolveAggregate(MATCH, A(GENARGLIST)) = A(resolveArgumentList(MATCH, GENARGLIST))
+    if resolveArgumentList(MATCH, GENARGLIST) :: ExactArgumentList .
+
+    eq resolveAggregate(MATCH, A(GENARGLIST)) = failResolveAggregate [owise] .
+
+    ceq resolveArgumentList(MATCH, (GENARG, GENARGLIST)) 
+        = resolveArgument(MATCH, GENARG), resolveArgumentList(MATCH, GENARGLIST)
+    if resolveArgument(MATCH, GENARG) :: ExactArgument
+        /\ resolveArgumentList(MATCH, GENARGLIST) :: ExactArgumentList .
+
+    eq resolveArgumentList(MATCH, noArgs) 
+        = noArgs .
+
+    eq resolveArgumentList(MATCH, GENARGLIST) 
+        = failResolveArgs [owise] .
+
+    --- fail resolution of an argument by default
+    eq resolveArgument(MATCH, GENARG) = failResolveArg [owise] .
+endfm)
+
+(view Value from TRIV to MATCHING is
+    sort Elt to Value .
+endv)
+
+---(
+    GENERIC-ARITHMETICS module adds arithmetic operations on variables and conditions in generics
+    and extends Value sort to contain integers.
+    It also defines exact matchings of arguments (burger(1) to burger(a) with a := 1 and vice versa)
+
+    The module serves as an example on how to extend GENERIC-AGGREGATE
+)
+(fmod GENERIC-ARITHMETICS is
+    extending GENERIC-AGGREGATE .
+
+    protecting INT .
+    protecting (MAYBE * (op maybe to failResolveVar)){Value} .
+
+    subsort Int < Value .
+
+    --- Condition adds additional checks to match a variable to a value
+    sort Condition .
+
+    sorts ExactExpr GenericExpr .
+
+    subsort ExactExpr < GenericExpr .
+    subsort Value < ExactExpr < ExactArgument .
+    subsort Variable < GenericExpr < GenericArgument .
+
+    --- We can add condition to an expression with variables
+    op _given_ : GenericExpr Condition -> GenericArgument [ctor prec 50 gather (e e)] .
+
+    --- check if the condition holds
+    op checkCondition : Matching Condition -> Bool .
+
+    --- we define operators on variables the same as real operators, 
+    --- but add ' in the beginning because we can't change behavior of the real operators
+
+    --- simple condition operators for integers
+    op _'>_ : GenericExpr GenericExpr -> Condition [ctor] .
+    op _'<_ : GenericExpr GenericExpr -> Condition [ctor] .
+    op _'==_ : GenericExpr GenericExpr -> Condition [ctor] .
+    op _'/\_ : Condition Condition -> Condition [ctor] .
+    op _'\/_ : Condition Condition -> Condition [ctor] .
+
+    --- arithmetic operator for integers
+    op _'-_ : GenericExpr GenericExpr -> GenericExpr [prec 33 gather (E e)] .
+    op _'+_ : GenericExpr GenericExpr -> GenericExpr [prec 33] .
+
+    --- implementing operators from GENERIC-AGGREGATE module
+    op matchVar : Matching ExactExpr GenericExpr -> Maybe{Matching} .
+    op resolveVar : Matching GenericExpr -> Maybe{Value} .
+
+    var N, N' : Value .
+    var V : Variable .
+    vars EXPR EXPR' : GenericExpr .
+    var EXACT : ExactExpr .
+    vars VAR VAR' : Variable .
+    vars VAL VAL' : Int .
+    vars MATCH : Matching .
+    vars COND COND' : Condition .
+
+
+    --- implementing operators from GENERIC-AGGREGATE module
+    eq matchArgument(MATCH, EXACT, EXPR) = matchVar(MATCH, EXACT, EXPR) .
+    eq matchArgument(MATCH, EXACT, EXPR given COND) = matchVar(MATCH, EXACT, EXPR given COND) .
+    eq resolveArgument(MATCH, EXPR) = resolveVar(MATCH, EXPR) .
+    
+    eq matchVar(MATCH, N, N) = MATCH .
+    --- different values fail to match
+    ceq matchVar(MATCH, N, N') = failMatch if N =/= N' .
+    --- we can't match the variable if it was matched before to something else
+    ceq matchVar(V := N' ; MATCH, N, V) = failMatch if N =/= N' .
+    --- otherwise, we assign the value to the variable
+    eq matchVar(MATCH, N, V) = V := N ; MATCH [owise] .
+
+    --- replace variable with a value if it is an exact match
+    eq resolveVar(V := N ; MATCH, V) = N .
+    --- skip values (they are not variables and do not need to resolve)
+    eq resolveVar(MATCH, N) = N .
+
+    eq resolveVar(MATCH, EXPR) = failResolveVar [owise] .
+
+
+    --- we match a value in argument only if it satisfies condition for the argument 
+    ceq matchVar(MATCH, VAL, EXPR given COND) = MATCH ; matchVar(MATCH, VAL, EXPR) 
+    if checkCondition(MATCH ; matchVar(MATCH, VAL, EXPR), COND)
+        /\ matchVar(MATCH, VAL, EXPR) =/= failMatch .
+
+    eq matchVar(MATCH, VAL, EXPR given COND) = failMatch [owise] .
+
+    --- mapping from generic expression constructors to real operators
+    eq checkCondition(MATCH, EXPR '> EXPR') = resolveVar(MATCH, EXPR) > resolveVar(MATCH, EXPR') .
+    eq checkCondition(MATCH, EXPR '< EXPR') = resolveVar(MATCH, EXPR) < resolveVar(MATCH, EXPR') .
+    eq checkCondition(MATCH, EXPR '== EXPR') = resolveVar(MATCH, EXPR) == resolveVar(MATCH, EXPR') .
+    eq checkCondition(MATCH, COND '/\ COND') = checkCondition(MATCH, COND) and checkCondition(MATCH, COND') .
+    eq checkCondition(MATCH, COND '\/ COND') = checkCondition(MATCH, COND) or checkCondition(MATCH, COND') .
+
+
+    eq resolveVar(MATCH, EXPR '- EXPR') = resolveVar(MATCH, EXPR) - resolveVar(MATCH, EXPR') .
+    eq resolveVar(MATCH, EXPR '+ EXPR') = resolveVar(MATCH, EXPR) + resolveVar(MATCH, EXPR') .
+endfm)
+
+
+---(
+    The module to control LTS that uses variables in the rules
+
+    To use it you need to specify what modules will satisfy matching variables in information
+)
+(mod GENERIC-EVOLUTION is
+    
+    extending EVOLUTION .
+    including GENERICS .
+
+    op auto : -> Event .
+
+    vars H CO TS PHY : Oid .
+    vars CL CAP : Nat .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : GenericInfo .
+    vars PERC ACT INFOITEM : GenericItem .
+    var PARAM : Parameter .
+    vars EV1 EV2 : Event .
+    var TRANS : LTS .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    vars N M : Nat .
+
+    --- the rule is automatic and does not need interaction with human
+    crl [GENERIC_SYSTEM_EVOLUTION] :
+        < TS : System | currentState : (INFO1, INFO3 [ INV1 , INV3 ]),
+            transitions : (INFO2 [ INV2 ] -- auto -> INFO4 [ INV4 ]) ; TRANS >
+    =>
+        < TS : System | currentState : 
+                (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+            transitions : (INFO2 [ INV2 ] -- auto -> INFO4 [ INV4 ]) ; TRANS >
+
+    if checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+
+    
+   crl [GENERIC_PHYSIOLOGY_ADDS_INFO] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO1, INFO3 [ INV1 , INV3 ],
+           transitions : (INFO2 [ INV2 ] -- (CONTENTSTM1 >|) -> INFO4 [ INV4 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+           transitions : (INFO2 [ INV2 ] -- (CONTENTSTM1 >|) -> INFO4 [ INV4 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP /\ not CONTENTSTM1 in STMEM
+        /\ checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+        
+    
+   crl [GENERIC_PHYSIOLOGY_REMOVES_INFO] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO1, INFO3 [ INV1 , INV3 ],
+           transitions : (INFO2 [ INV2 ] -- (|> CONTENTSTM1) -> INFO4 [ INV4 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM),
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+           transitions : (INFO2 [ INV2 ] -- (|> CONTENTSTM1) -> INFO4 [ INV4 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP
+        /\ checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+
+
+    crl [GENERIC_PHYSIOLOGY_READS_STM] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO1, INFO3 [ INV1 , INV3 ],
+           transitions : (INFO2 [ INV2 ] -- (|> CONTENTSTM1 >|) -> INFO4 [ INV4 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+           transitions : (INFO2 [ INV2 ] -- (|> CONTENTSTM1 >|) -> INFO4 [ INV4 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP
+        /\ checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+
+    
+   crl [GENERIC_EXTERNAL_SYNCHRONIZATION] : 
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : (G : INFO5 |> PERC == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : PERC, INFO1, INFO3 [ INV1 , INV3 ],
+           transitions : (PERC , INFO2 [ INV2 ] -- EV2 -> INFO4 [ INV4 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : update(CL,CAP,G,INFO5,STMEM,NEWSTM,ACT),
+                           longTermMem : (G : INFO5 |> PERC == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+           transitions : (PERC , INFO2 [ INV2 ] -- EV2 -> INFO4 [ INV4 ]) ; TRANS >
+     if extSynch(ACT,EV2) /\ established(G,STMEM) /\ enabling(INFO5,STMEM)
+         /\ CL + load(STMEM) <= CAP 
+         /\ checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+
+
+   --- If the cognitive rule does not need any perception to change LTS
+   crl [GENERIC_ACTION] :
+      < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : (G : INFO5 |> == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : INFO1, INFO3 [ INV1 , INV3 ],
+           transitions : (INFO2 [ INV2 ] -- EV2 -> INFO4 [ INV4 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : update(CL,CAP,G,INFO5,STMEM,NEWSTM,ACT),
+                           longTermMem : (G : INFO5 |> == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : (resolveState( INFO1, INFO2, INFO4 ), INFO3 
+                    [ resolveState( INV1, INV2, INV4 ) , INV3 ]),
+           transitions : (INFO2 [ INV2 ] -- EV2 -> INFO4 [ INV4 ]) ; TRANS >
+     if extSynch(ACT,EV2) /\ established(G,STMEM) /\ enabling(INFO5,STMEM)
+         /\ CL + load(STMEM) <= CAP 
+         /\ checkState( INFO1, INFO2, INFO4 ) /\ checkState( INV1, INV2, INV4 ) .
+endm)
+
+

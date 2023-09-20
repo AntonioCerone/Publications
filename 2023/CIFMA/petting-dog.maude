@@ -1,0 +1,86 @@
+
+load model-checker.maude
+load untimed-evolution.maude
+
+---(
+    begin LTM of child
+    goal(pat dog): |> dog is wagging => >| dog is wagging
+    dog is wagging |> => >| dog is friendly
+    goal(pat dog): dog is friendly |> => approach dog >| dog is friendly
+    goal(pat dog): |> dos is close enough => >| dos is close enough
+    goal(pat dog): |> dog is friendly, dos is close enough => pat dog >| dog is happy
+    end
+
+    begin STM of child
+    goal(pat dog)
+    end
+
+    begin SYSTEM dog init dog is wagging, dog is far away
+    dog is far away -- approach dog -> dog is close enough
+    dog is wagging -- pat dog -> dog is satisfied
+    end
+)
+
+(mod PETTING-DOG is
+    protecting EVOLUTION .
+    protecting EVOLUTION-MODEL-CHECK .
+    
+    subsort String < Oid .
+
+    op noParam : -> Parameter .
+    op noPerc : -> InfoItem .
+
+    op childLTM : -> LTM .
+    eq childLTM = --- There might be a problem because this rule can be called many times and it fills up STM
+            (goal("pat dog") : noInfo |> "dog is wagging" == noParam => >| "dog is wagging");
+
+            --- These rules do not use action and perceprion
+            (noGoal : "dog is wagging" |> == noParam => >| "dog is friendly");
+            (goal("pat dog") : "dog is friendly" |> == noParam => "approach dog" >| "dog is friendly");
+            (goal("pat dog") : noInfo |> "dog is close enough" == noParam => >| "dog is close enough");
+
+            --- You can not have multiple items in perception
+            (goal("pat dog") : "dog is friendly", "dog is close enough" |> == noParam => "pat dog" >| "dog is happy") .
+
+    op dogLTS : -> LTS .
+    eq dogLTS = 
+        ("dog is far away" [ noInfo ] -- "approach dog" -> "dog is close enough" [ noInfo ]);
+        --- added "dog is close enough", because lhs needs to match perception of the rule
+        ("dog is wagging", "dog is close enough" [ noInfo ] -- "pat dog" -> "dog is satisfied" [ noInfo ]).
+
+    op init : -> Configuration .
+    eq init = 
+    < "child" : Human | 
+        cognition : "cogn", 
+        physiology : "phys" >
+    < "cogn" : Cognition |
+        cognitiveLoad : 0,
+        stmCapacity : 3,
+        shortTermMem : (goal("pat dog") with noAdd),
+        longTermMem : 
+            childLTM >
+    < "dog" : System |
+        currentState : ("dog is wagging", "dog is far away" [ noInfo ]),
+        transitions : 
+            dogLTS >
+    .
+
+    op finalState : -> Configuration .
+    eq finalState =  
+        < "child" : Human | 
+            cognition : "cogn", 
+            physiology : "phys" >
+        < "cogn" : Cognition |
+            cognitiveLoad : 0,
+            stmCapacity : 3,
+            shortTermMem : "dog is happy" with noAdd,
+            longTermMem : 
+                childLTM >
+        < "dog" : System |
+            currentState : ("dog is satisfied"[noInfo]),
+            transitions : 
+                dogLTS >
+    .
+endm)
+
+(red modelCheck(init, leadsTo(finalState)) .)

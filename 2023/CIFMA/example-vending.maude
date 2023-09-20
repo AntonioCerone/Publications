@@ -1,0 +1,103 @@
+load generic-evolution.maude
+
+
+(mod EXAMPLE is
+    protecting GENERIC-EVOLUTION .
+
+    including GENERIC-ARITHMETICS .
+
+    op init : -> Configuration .
+
+    op hunger : -> AggregateLabel .
+    op idle : -> AggregateLabel .
+    op activation : -> AggregateLabel .
+    op saturation : -> AggregateLabel .
+    op ate : -> AggregateLabel .
+
+    op a : -> Variable .
+    op b : -> Variable .
+    op c : -> Variable .
+
+    op food : -> AggregateLabel .
+    op wrongPinAttempts : -> AggregateLabel .
+
+
+    subsort String < Oid .
+    subsort String < InfoItem .
+
+    op noParam : -> Parameter .
+
+    eq init = 
+        < "bob" : Human |
+            cognition : "cogn",
+            physiology : "physiology" >
+        < "vending" : System |
+            currentState : ( "requested card" [ food(1), wrongPinAttempts(0) ]),
+            transitions :
+                --- user inserts card
+                ("requested card" [ food(a given a '> 0) ] -- "insert card" -> "requested pin" [ food(a) ]);
+                --- user enters correct pin
+                ("requested pin" [ wrongPinAttempts(a given a '< 2) ] -- "enter pin" -> "returned card" [ wrongPinAttempts(0), "success" ]);
+                ("wrong pin warning", "requested pin again" [ wrongPinAttempts(a given a '< 2) ] -- "enter pin" -> "returned card" [ wrongPinAttempts(0), "success" ]);
+                --- user enters incorrect pin first time
+                ("requested pin" [ wrongPinAttempts(a given a '< 1) ] -- "enter pin" -> "wrong pin warning", "requested pin again" [ wrongPinAttempts(a '+ 1) ]);
+                ("wrong pin warning", "requested pin again" [ wrongPinAttempts(a given a '== 1) ] -- "enter pin" -> "confiscated card" [ wrongPinAttempts(a '+ 1) ]);
+                --- user enters incorrect pin second time, card is confiscated
+                ("requested pin" [ wrongPinAttempts(a given a '== 1) ] -- "enter pin" -> "confiscated card" [ wrongPinAttempts(a '+ 1) ]);
+                --- user takes card back after successfully entering pin
+                ("returned card" [ "success", food(a given a '> 0) ] -- "collect card" -> "delivered food" [ food(a '- 1) ]);
+                --- user takes card back after entering incorrect pin
+                ("requested pin again", "wrong pin warning" [ noInfo ] -- "abort" -> "returned card"  [ "failed" ]);
+
+                ("returned card" [ "failed" ] -- "collect card" -> "requested card" [ noInfo ]);
+                --- user collects food
+                ("delivered food" [ noInfo ] -- "collect food" -> "requested card" [ noInfo ])
+        >
+        < "cogn" : Cognition |
+            stmCapacity : 7,
+            cognitiveLoad : 0,
+            shortTermMem : (goalFromAnyOf("collect food", "abort collect food") with noAdd),
+            longTermMem :
+                (goalFromAnyOf("collect food", "abort collect food") : noInfo |> "requested card" == noParam => "insert card" >| "expect requested pin");
+                (goal("eat") : noInfo |> "requested card" == noParam => "insert card" >| "expect requested pin");
+                (noGoal : "expect requested pin" |> "requested pin" == noParam => "enter pin" >| "expect returned card");
+                (noGoal : "expect returned card" |> "wrong pin warning" == noParam => >| "wrong pin warning");
+
+                (goal("eat") : "wrong pin warning" |> "requested pin again" == noParam => "enter pin" >| "expect returned card");
+                (goalFromAnyOf("collect food", "abort collect food") : "wrong pin warning" |> == noParam => "abort" >| "abort collect food");
+                (noGoal : "abort collect food" |> "returned card" == noParam => "collect card" >| noInfo);
+
+                (noGoal : "expect returned card" |> "returned card" == noParam => "collect card" >| "expect delivered food");
+                (noGoal : "expect delivered food" |> "delivered food" == noParam => "collect food" >| "food available");
+                (goal("eat") : "food available" |> == noParam => "eat" >| noInfo)
+        >
+        < "physiology" : System |
+            currentState : (noInfo [hunger(0), "inactive", activation(5), saturation(5)]),
+            transitions : 
+                ( noInfo [ hunger(a given a '< 6), "inactive" ] -- auto -> noInfo [ hunger(a '+ 1), "inactive" ]);
+                ( noInfo [ hunger(a given a '> b), activation(b), "inactive" ] -- auto -> noInfo [ hunger(a), activation(b), "active" ]);
+                ( noInfo [ hunger(a given a '> b), saturation(b), "active" ] -- goal("eat") >| -> noInfo [ hunger(a), saturation(b), "active" ]);
+                ( noInfo [ hunger(a given a '> 0 '/\ (a '< b '\/ a '== b)), saturation(b), "active" ] -- auto -> noInfo [ hunger(a), saturation(b), "inactive" ]);
+                ( noInfo [ hunger(a given a '> 0), ate(b) ] -- "eat" -> noInfo [ hunger(a '- 1), ate(b '+ 1) ])
+        >
+    .
+endm)
+
+(search init =>! C:Configuration .)
+
+(search 
+    init 
+=>* 
+    C:Configuration
+    < H:Oid : Human |
+            cognition : CO:Oid,
+            physiology : PHY:Oid >
+    < S:Oid : System |
+        currentState : ( "confiscated card", INFO:Information [ INV:Information ]),
+        ATTR:AttributeSet >
+    < PHY:Oid : System |
+        currentState : (INFO':Information [ "inactive", INV':Information ]),
+        ATTR':AttributeSet >  
+.)
+
+

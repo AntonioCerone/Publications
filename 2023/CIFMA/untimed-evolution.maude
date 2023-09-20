@@ -1,0 +1,277 @@
+load entities.maude .
+
+--- parentheses, because we import modules from Object Maude.
+(mod EVOLUTION is
+   protecting HUMAN .
+   protecting CONFIGURATION .
+
+   op update : Nat Nat Goal Information STM ContentSTMList Event -> STM .
+   op updateWithoutGoal : Nat Nat Goal Information STM ContentSTMList -> STM .
+
+   op _removing_ : STM Information -> STM .
+   op _checkingGoal_ : STM Goal -> STM .
+   op _checkingGoalSTM_ : STM ContentSTMList -> STM .
+   op _adding_ : STM ContentSTMList -> STM .
+   op load : STM -> Nat .
+   op _in_ : ContentSTM STM -> Bool .
+
+   op _fulfills_ : Information ContentSTM -> Bool . 
+
+   vars H CO TS PHY : Oid .
+   vars CL CAP : Nat .
+   var STMEM : STM .
+   var LTMEM : LTM .
+   var G : Goal .
+-----   vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 : Information .
+   vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+   vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+   var PARAM : Parameter .
+   vars EV1 EV2 : Event .
+   var TRANS : LTS .
+   var ADD : AddInfo .
+   var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+   var ITEMSTM : ItemSTM .
+   var NEWSTM STMList : ContentSTMList .
+   vars N M : Nat .
+
+   --- eq update(CL,CAP,G,INFO1,STMEM,INFO2) = STMEM [owise] . --- dummy definition as a placeholder
+   --- different definitions for untimed-evolution.maude and timed-evolution.maude
+
+   eq update(CL, CAP, G, INFO1, STMEM, NEWSTM, ACT)
+      = STMEM 
+         removing INFO1
+         checkingGoalSTM ACT
+         checkingGoalSTM NEWSTM
+         adding NEWSTM .
+   
+   
+   eq updateWithoutGoal(CL, CAP, G, INFO1, STMEM, NEWSTM)
+      = STMEM 
+         removing INFO1
+         checkingGoalSTM NEWSTM
+         adding NEWSTM .
+
+
+   --- remove set of information from STM
+   eq emptySTM removing INFO1 = emptySTM .
+   eq ((ITEMSTM); STMEM) removing noInfo = ((ITEMSTM); STMEM) .
+
+   eq ((CONTENTSTM2 with ADD); STMEM) removing CONTENTSTM1 
+      = if CONTENTSTM1 =/= CONTENTSTM2 then 
+         (CONTENTSTM2 with ADD); (STMEM removing CONTENTSTM1) 
+      else 
+         STMEM removing CONTENTSTM1 
+      fi .
+
+   eq ((ITEMSTM); STMEM) removing (CONTENTSTM1, CONTENTSTM2, INFO1) 
+      = ((ITEMSTM); STMEM) removing CONTENTSTM1 removing (CONTENTSTM2, INFO1) .
+
+   
+   --- remove goals from STM if they match new items in a rule   
+   eq emptySTM checkingGoalSTM NEWSTM = emptySTM .
+   eq STMEM checkingGoalSTM noInfo = STMEM .
+   eq ((CONTENTSTM1 with ADD); STMEM) checkingGoalSTM NEWSTM
+      = (if NEWSTM fulfills CONTENTSTM1 then 
+         emptySTM
+      else
+         (CONTENTSTM1 with ADD)
+      fi);
+      (STMEM checkingGoalSTM NEWSTM) .
+   eq STMEM checkingGoalSTM (G, NEWSTM) = STMEM checkingGoalSTM NEWSTM .
+
+   eq (INFOITEM, NEWSTM) fulfills goal(INFOITEM) = true .
+   ceq (INFOITEM, NEWSTM) fulfills goal(INFOITEM2) = NEWSTM fulfills goal(INFOITEM2) if INFOITEM =/= INFOITEM2 .
+   eq (INFOITEM, NEWSTM) fulfills goalFromAnyOf(INFOITEM2, INFO1) =
+      (INFOITEM fulfills goal(INFOITEM2)) 
+      or INFOITEM fulfills goalFromAnyOf(INFO1) 
+      or NEWSTM fulfills goalFromAnyOf(INFOITEM2, INFO1)
+   .
+   eq (INFOITEM, NEWSTM) fulfills goalFromAnyOf(noInfo) = false .
+   eq (INFOITEM, NEWSTM) fulfills INFOITEM2 = false .
+   eq noInfo fulfills NEWSTM = false .
+
+   --- add info to STM
+   eq STMEM adding noInfo = STMEM .
+
+   ceq STMEM adding (CONTENTSTM1, NEWSTM) 
+      = ((STMEM); (CONTENTSTM1 with noAdd)) adding NEWSTM
+   if not CONTENTSTM1 in STMEM .
+
+   ceq STMEM adding (CONTENTSTM1, NEWSTM) 
+      = STMEM adding NEWSTM
+   if CONTENTSTM1 in STMEM .
+
+   --- number of items in STM
+   eq load(emptySTM) = 0 .
+   eq load((ITEMSTM); STMEM) = load(STMEM) + 1 .
+
+   eq CONTENTSTM1 in (CONTENTSTM1 with noAdd); STMEM = true . 
+   eq CONTENTSTM1 in STMEM = false [owise] .
+
+   crl [EXTERNAL_SYNCHRONIZATION] : --- there might be an general rule for synchronisation
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : PERC , INFO3, INFO5 [ INV1 , INV3 ],
+           transitions : (PERC , INFO3 [ INV1 ] -- EV2 -> INFO4 [ INV2 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           longTermMem : (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+           transitions : (PERC , INFO3 [ INV1 ] -- EV2 -> INFO4 [ INV2 ]) ; TRANS >
+     if extSynch(ACT,EV2) /\ established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP .
+
+
+   --- If the cognition does not need to interact with LTS for internal evolution
+   crl [INTERNAL_EVOLUTION] :
+      < H : Human | cognition : CO,
+                    physiology : PHY >
+      < CO : Cognition | cognitiveLoad : CL,
+                         stmCapacity : CAP,
+                         shortTermMem : STMEM,
+                         longTermMem : (G : INFO1 |> == PARAM => >| NEWSTM) ; LTMEM >
+   =>
+      < H : Human | cognition : CO,
+                    physiology : PHY >
+      < CO : Cognition | cognitiveLoad : CL,
+                         stmCapacity : CAP,
+                         shortTermMem : updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM),
+                         longTermMem : (G : INFO1 |> == PARAM => >| NEWSTM) ; LTMEM >
+     if established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP /\ updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM) =/= STMEM .
+                        
+
+   --- If the cognition only receives perception from LTS and does not change LTS.
+   crl [PERCEPTION] :
+      < H : Human | cognition : CO,
+                    physiology : PHY >
+      < CO : Cognition | cognitiveLoad : CL,
+                        stmCapacity : CAP,
+                        shortTermMem : STMEM,
+                        longTermMem : (G : INFO1 |> PERC == PARAM => >| NEWSTM) ; LTMEM >
+      < TS : System | currentState : PERC , INFO5 [ INV3 ],
+                      transitions : TRANS >
+   =>
+      < H : Human | cognition : CO,
+                    physiology : PHY >
+      < CO : Cognition | cognitiveLoad : CL,
+                         stmCapacity : CAP,
+                         shortTermMem : updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM),
+                         longTermMem : (G : INFO1 |> PERC == PARAM => >| NEWSTM) ; LTMEM >
+      < TS : System | currentState : PERC , INFO5 [ INV3 ],
+                      transitions : TRANS >
+     if established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP /\ updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM) =/= STMEM .
+
+
+   --- If the cognitive rule does not need any perception to change LTS
+   crl [ACTION] :
+      < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : (G : INFO1 |> == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- EV2 -> INFO4 [ INV2 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           longTermMem : (G : INFO1 |> == PARAM => ACT >| NEWSTM) ; LTMEM >
+        < TS : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- EV2 -> INFO4 [ INV2 ]) ; TRANS >
+     if extSynch(ACT,EV2) /\ established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP .
+
+
+   --- deleting random element from STM when its capacity is exceeded.
+   crl [REMOVAL] :
+      < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (ITEMSTM); STMEM,
+                           longTermMem : LTMEM >
+   => 
+      < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : LTMEM >
+   if CL + load((ITEMSTM); STMEM) > CAP .
+
+
+   crl [PHYSIOLOGY_ADDS_INFO] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (CONTENTSTM1 >|) -> INFO4 [ INV2 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (CONTENTSTM1 >|) -> INFO4 [ INV2 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP /\ not CONTENTSTM1 in STMEM .
+     
+   crl [PHYSIOLOGY_REMOVES_INFO] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (|> CONTENTSTM1) -> INFO4 [ INV2 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (|> CONTENTSTM1) -> INFO4 [ INV2 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP .
+  	 
+      
+   crl [PHYSIOLOGY_CHANGES] :
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (|> CONTENTSTM1 >|) -> INFO4 [ INV2 ]) ; TRANS >
+     =>
+        < H : Human | cognition : CO,
+                      physiology : PHY >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (STMEM); CONTENTSTM1 with noAdd,
+                           longTermMem : LTMEM >
+        < PHY : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+           transitions : (INFO3 [ INV1 ] -- (|> CONTENTSTM1 >|) -> INFO4 [ INV2 ]) ; TRANS >
+     if CL + load(STMEM) <= CAP .
+
+endm)
+
+---( CHANGES:
+   09.02.2023 - line 132 - added predicate to check if internal evolution changes memory state.
+)
