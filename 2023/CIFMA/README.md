@@ -10,13 +10,13 @@
 
 3. Start the Maude system. The following prompt should appear:
 
-   *maude>*
+   **maude>**
 4. Start Real-Time Maude:
    
-   maude> load real-time-maude
+   **maude> load real-time-maude**
    
 5. Load the example
 
-   maude> load example-vending.maude
+   **maude> load example-vending.maude**
 
 
