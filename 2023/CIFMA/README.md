@@ -1,4 +1,4 @@
-## Download and run Mause
+## Download and run Maude
 
 1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
 
