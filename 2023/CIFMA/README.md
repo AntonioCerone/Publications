@@ -10,7 +10,7 @@
 
 3. Start the Maude system. The following prompt should appear:
 
-   maude>
+   *maude>*
 4. Start Real-Time Maude:
    
    maude> load real-time-maude
