@@ -1,11 +1,22 @@
-1. Start maude, the following prompt should appear:
+## Download and run Mause
+
+1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
+
+   (Real-Time Maude does not work with Maude 3)
+
+2. Download Real-Time Maude from: https://olveczky.se/RealTimeMaude/
+
+   and copy it in the Maude directory.
+
+3. Start the Maude system. The following prompt should appear:
 
    maude>
-2. Start Real-Time Maude:
+4. Start Real-Time Maude:
+   
    maude> load real-time-maude
    
-3. Load the example
+5. Load the example
 
-   Maude> load example-vending.maude
+   maude> load example-vending.maude
 
 
