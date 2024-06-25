@@ -1,4 +1,4 @@
-[Publications](../..) -> [2023](..) -> JLAMP
+[Publications](../..) -> [2023](..) ->
 # JLAMP 2023
 
 **Download**
