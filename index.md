@@ -1,4 +1,4 @@
-**[Antonio Cerone](..)'s**
+**[Antonio Cerone](https://antoniocerone.github.io)'s**
 # Publications
 
 ## 2024 ##
