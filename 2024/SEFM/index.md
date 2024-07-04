@@ -1,13 +1,29 @@
 ---
-title: JLAMP 2023
-summary: A brief description of my document.
+title: SEFM 2024
+summary: Submitted conference paper information, including abstract, keywords and links to the code.
 authors:
     - Antonio Cerone
-date: 2024-06-25
-some_url: https://antoniocerone.github.io/Publications/2023/JLAMP/
+date: 2024-07-04
+some_url: https://antoniocerone.github.io/Publications/2024/SEFM/
 ---
-[Publications](../..) -> [2023](..) ->
-# JLAMP 2023
+# Formal Modelling and Verification of Multy-party Human-computer Interaction
+## Antonio Cerone and Olzhas Zhangeldinov
+Submitted to [SEFM 2024](https://sefm-conference.github.io/2024/)
+### Abstract
+The unpredictability of human behaviour makes formal analysis of human-computer interaction (HCI) already difficult when one single user is interacting with one computer system.
+However, nowadays interaction normally involves several users, i.e., human components, interacting simultaneously with separate interfaces
+which communicate with and/or act upon the same computer resource.
+Independently on whether the human components aim at using computer resources to communicate with each other or
+to concurrently act upon and modify information stored in  computer resources, not only need interface to be usable
+but they also must prevent those forms of user behaviour that may negatively interfere with actions performed by other users.
 
-**Download**
-* [atm.maude](atm.maude)
+In this paper, we define a framework that combines the formal modelling of cognitive aspects of human components and the modelling of actual computer system into an overall model that can be formally analysed using model-checking.
+We use the \brdlname\ (\brdl) to model human cognition and we encapsulate it within
+an extension of the Real-time Maude language that is used to model the computer system.
+Real-time Maude model-checker is then used to carry out formal verification.
+### Keywords
+Human-computer Interaction; Human Cognition; Model Checking; Maude Rewrite System.
+### Maude Code
+* [entities.maude](entities.maude)
+* [example-registration-lts.maude](example-registration-lts.maude)
+* [timed-evolution.maude](timed-evolution.maude)
