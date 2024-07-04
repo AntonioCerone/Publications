@@ -1,0 +1,546 @@
+load entities.maude
+
+(omod MEMORY-OPERATIONS is 
+    protecting HUMAN .
+
+    op update : Nat Nat Goal Information STM ContentSTMList Event -> STM .
+    op updateWithoutGoal : Nat Nat Goal Information STM ContentSTMList -> STM .
+
+    op _removing_ : STM Information -> STM .
+    op _checkingGoal_ : STM Goal -> STM .
+    op _checkingGoalSTM_ : STM ContentSTMList -> STM .
+    op _adding_ : STM ContentSTMList -> STM .
+    op load : STM -> Nat .
+    op _in_ : ContentSTM STM -> Bool .
+    op _in_ : InfoItem Information -> Bool .
+
+    op _fulfills_ : Information ContentSTM -> Bool . 
+
+    vars H CO TS : Oid .
+    vars CL CAP : Nat .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+    vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+    var PARAM : Parameter .
+    vars EV1 EV2 : Event .
+    var TRANS : LTS .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    vars N M : Nat .
+
+    eq update(CL, CAP, G, INFO1, STMEM, NEWSTM, ACT)
+        = STMEM 
+            removing INFO1
+            checkingGoalSTM ACT
+            checkingGoalSTM NEWSTM
+            adding NEWSTM .
+
+
+    eq updateWithoutGoal(CL, CAP, G, INFO1, STMEM, NEWSTM)
+        = STMEM 
+            removing INFO1
+            checkingGoalSTM NEWSTM
+            adding NEWSTM .
+
+
+    --- remove set of information from STM
+    eq emptySTM removing INFO1 = emptySTM .
+    eq ((ITEMSTM); STMEM) removing noInfo = ((ITEMSTM); STMEM) .
+
+    eq ((CONTENTSTM2 with ADD); STMEM) removing CONTENTSTM1 
+        = if CONTENTSTM1 =/= CONTENTSTM2 then 
+            (CONTENTSTM2 with ADD); (STMEM removing CONTENTSTM1) 
+        else 
+            STMEM removing CONTENTSTM1 
+        fi .
+
+    eq ((ITEMSTM); STMEM) removing (CONTENTSTM1, CONTENTSTM2, INFO1) 
+        = ((ITEMSTM); STMEM) removing CONTENTSTM1 removing (CONTENTSTM2, INFO1) .
+
+
+    --- remove goals from STM if they match new items in a rule   
+    eq emptySTM checkingGoalSTM NEWSTM = emptySTM .
+    eq STMEM checkingGoalSTM noInfo = STMEM .
+    eq ((CONTENTSTM1 with ADD); STMEM) checkingGoalSTM NEWSTM
+        = (if NEWSTM fulfills CONTENTSTM1 then 
+            emptySTM
+        else
+            (CONTENTSTM1 with ADD)
+        fi);
+        (STMEM checkingGoalSTM NEWSTM) .
+    eq STMEM checkingGoalSTM (G, NEWSTM) = STMEM checkingGoalSTM NEWSTM .
+
+    eq (INFOITEM, NEWSTM) fulfills goal(INFOITEM) = true .
+    ceq (INFOITEM, NEWSTM) fulfills goal(INFOITEM2) = NEWSTM fulfills goal(INFOITEM2) if INFOITEM =/= INFOITEM2 .
+    eq (INFOITEM, NEWSTM) fulfills goalFromAnyOf(INFOITEM2, INFO1) =
+        (INFOITEM fulfills goal(INFOITEM2)) 
+        or INFOITEM fulfills goalFromAnyOf(INFO1) 
+        or NEWSTM fulfills goalFromAnyOf(INFOITEM2, INFO1)
+    .
+    eq (INFOITEM, NEWSTM) fulfills goalFromAnyOf(noInfo) = false .
+    eq (INFOITEM, NEWSTM) fulfills INFOITEM2 = false .
+    eq noInfo fulfills NEWSTM = false .
+
+    --- add info to STM
+    eq STMEM adding noInfo = STMEM .
+
+    ceq STMEM adding (CONTENTSTM1, NEWSTM) 
+        = ((STMEM); (CONTENTSTM1 with noAdd)) adding NEWSTM
+    if not CONTENTSTM1 in STMEM .
+
+    ceq STMEM adding (CONTENTSTM1, NEWSTM) 
+        = STMEM adding NEWSTM
+    if CONTENTSTM1 in STMEM .
+
+    --- number of items in STM
+    eq load(emptySTM) = 0 .
+    eq load((ITEMSTM); STMEM) = load(STMEM) + 1 .
+
+    eq CONTENTSTM1 in (CONTENTSTM1 with noAdd); STMEM = true . 
+    eq CONTENTSTM1 in STMEM = false [owise] .
+
+    eq INFOITEM in (INFOITEM, INFO1) = true .
+    eq INFOITEM in INFO1 = false [owise] .
+endom)
+
+(omod EVOLUTION-BASE is 
+    protecting MEMORY-OPERATIONS .
+
+    vars H CO TS : Oid .
+    vars CL CAP : Nat .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+    vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+    var PARAM : Parameter .
+    vars EV1 EV2 : Event .
+    var TRANS : LTS .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    vars N M : Nat .
+    
+   --- deleting random element from STM when its capacity is exceeded.
+   crl [REMOVAL] :
+      < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : (ITEMSTM); STMEM,
+                           longTermMem : LTMEM >
+   => 
+      < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : LTMEM >
+   if CL + load((ITEMSTM); STMEM) > CAP .
+endom)
+
+
+(tomod TIMED-EVOLUTION-BASE is
+    including EVOLUTION-BASE .
+    including NAT-TIME-DOMAIN-WITH-INF .
+    
+    op mte : Configuration -> TimeInf [frozen (1)] .
+    op mte : Parameter -> TimeInf [frozen (1)] .
+    op delta : Configuration Time -> Configuration [frozen (1)] .
+    op delta : Parameter Time -> Parameter [frozen (1)] .
+
+    vars O O' TS H CO PHY : Oid .
+    vars T T' T'' : Time .
+    vars TI TI' : TimeInf .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+    vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+    var PARAM : Parameter .
+    vars EV1 EV2 : Event .
+    var TRANS : LTS .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    var MSGS : MsgConfiguration .
+    
+
+    eq delta(none, T) = none .
+    eq delta(NeC:NEConfiguration NeC':NEConfiguration, T) =
+        delta(NeC:NEConfiguration, T) delta(NeC':NEConfiguration, T) .
+        
+    eq delta(< TS : System | inProgress : INFO1 [ INV1 ] -- EV1 / PARAM -> INFO2 [ INV2 ] MSGS >, T) =
+        < TS : System | inProgress : INFO1 [ INV1 ] -- EV1 / delta(PARAM, T) -> INFO2 [ INV2 ] MSGS > .
+    eq delta(< TS : System | inProgress : free >, T) =
+        < TS : System | inProgress : free > .
+
+    eq delta(< H : Human | >, T) = < H : Human | > .
+    eq delta(< CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >, T) 
+        = < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == delta(PARAM, T) => ACT >| NEWSTM) > > .
+        
+    eq delta(< CO : Cognition | commitment : < TS, (G : INFO1 |> == PARAM => ACT >| NEWSTM) > >, T) 
+        = < CO : Cognition | commitment : < TS, (G : INFO1 |> == delta(PARAM, T) => ACT >| NEWSTM) > > .
+
+    eq delta(< CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => >| NEWSTM) > >, T) 
+        = < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == delta(PARAM, T) => >| NEWSTM) > > .
+
+    eq delta(< CO : Cognition | commitment : < TS, (G : INFO1 |> == PARAM => >| NEWSTM) > >, T) 
+        = < CO : Cognition | commitment : < TS, (G : INFO1 |> == delta(PARAM, T) => >| NEWSTM) > > .
+
+    eq delta(< CO : Cognition | commitment : free >, T) 
+        = < CO : Cognition | commitment : free > .
+
+
+    eq mte(none) = INF .
+    eq mte(NeC:NEConfiguration NeC':NEConfiguration) = 
+        min(mte(NeC:NEConfiguration), mte(NeC':NEConfiguration))
+    .
+
+    eq mte(< TS : System | inProgress : INFO1 [ INV1 ] -- EV1 / PARAM -> INFO2 [ INV2 ] MSGS >) = 
+        mte(PARAM)
+    .
+    eq mte(< TS : System | inProgress : free >) = INF .
+
+    eq mte(< H : Human | >) = INF .
+    eq mte(< CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >) 
+        = mte(PARAM) .
+    eq mte(< CO : Cognition | commitment : < TS, (G : INFO1 |> == PARAM => ACT >| NEWSTM) > >) 
+        = mte(PARAM) .
+    eq mte(< CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => >| NEWSTM) > >) 
+        = mte(PARAM) .
+    eq mte(< CO : Cognition | commitment : < TS, (G : INFO1 |> == PARAM => >| NEWSTM) > >) 
+        = mte(PARAM) .
+    eq mte(< CO : Cognition | commitment : free >) 
+        = INF .
+
+    crl [TICK] :
+        {C:Configuration} => {delta(C:Configuration, T)} in time T
+    if T <= mte(C:Configuration) [nonexec] .
+endtom)
+
+(tomod TIMED-SYSTEM-EVOLUTION is
+    protecting TIMED-EVOLUTION-BASE .
+
+    op timeElapsed : Parameter -> Bool .
+    op cancellable : Parameter -> Bool .
+
+    vars H CO TS O : Oid .
+    var C : Cid .
+    vars CL CAP : Nat .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+    vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+    vars PARAM PARAM' : Parameter .
+    vars EV1 EV2 : Event .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    vars N M : Nat .
+    var TRANS : LTS .
+    var MSGS : MsgConfiguration .
+    var MSG : Msg .
+
+    crl [LTS-RULE-FIRE] :
+        < TS : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+                        inProgress : (INFO3 [ INV1 ] -- EV2 / PARAM' -> INFO4 [ INV2 ] MSGS) >
+    =>
+        < TS : System | currentState : INFO4, INFO5 [ INV2 , INV3 ],
+                        inProgress : free >
+        MSGS
+    if timeElapsed(PARAM') .
+
+    rl [LTS-RULE-CONSUME] :
+        < TS : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+                        transitions : (INFO3 [ INV1 ] -- # MSG / PARAM' -> INFO4 [ INV2 ] MSGS); TRANS,
+                        inProgress : free >
+        MSG
+    =>
+        < TS : System | inProgress : (INFO3 [ INV1 ] -- # MSG / PARAM' -> INFO4 [ INV2 ] MSGS) >
+    .
+endtom)
+
+(tomod TIMED-EVOLUTION is
+    including TIMED-EVOLUTION-BASE .
+    including TIMED-SYSTEM-EVOLUTION .
+
+    op noPendingProgress : InProgress -> Bool .
+
+    vars H CO TS O : Oid .
+    var C : Cid .
+    vars CL CAP : Nat .
+    var STMEM : STM .
+    var LTMEM : LTM .
+    var G : Goal .
+    vars INFO1 INFO2 INFO3 INFO4 INFO5 INV1 INV2 INV3 INV4 : Information .
+    vars PERC ACT INFOITEM INFOITEM2 : InfoItem .
+    var TRANS : LTS .
+    vars PARAM PARAM' : Parameter .
+    vars EV1 EV2 : Event .
+    var ADD : AddInfo .
+    var CONTENTSTM1 CONTENTSTM2 : ContentSTM .
+    var ITEMSTM : ItemSTM .
+    var NEWSTM STMList : ContentSTMList .
+    vars N M : Nat .
+    var MSGS : MsgConfiguration .
+    var PROG : InProgress .
+    var LTSRULE : SystemRule .
+    
+    eq noPendingProgress(free) = true .
+    eq noPendingProgress(INFO1 [ INV1 ] -- EV1 / PARAM -> INFO2 [ INV2 ] MSGS) = mte(PARAM) > 0 .
+
+    --- Committing to perform LTM rule - activating timer that counts down the time needed to execute the rule 
+    crl [EXTERNAL_SYNCHRONIZATION_COMMIT] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           longTermMem : (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) ; LTMEM,
+                           commitment : free >
+        < TS : System | currentState : PERC , INFO3 [ INV3 ],
+                        inProgress : PROG >
+    =>
+        < H : Human | >
+        < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >
+        < TS : System | >
+    if noPendingProgress(PROG) /\ established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP .
+
+
+    crl [PERCEPTION_COMMIT] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                        stmCapacity : CAP,
+                        shortTermMem : STMEM,
+                        longTermMem : (G : INFO1 |> PERC == PARAM => >| NEWSTM) ; LTMEM,
+                        commitment : free >
+        < TS : System | currentState : PERC , INFO5 [ INV3 ],
+                        inProgress : PROG >
+    =>
+        < H : Human | >
+        < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => >| NEWSTM) > >
+        < TS : System | >
+     if noPendingProgress(PROG) /\ established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP /\ updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM) =/= STMEM .
+    
+
+    --- If the cognitive rule does not need any perception to change LTS
+    crl [ACTION_COMMIT] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                            stmCapacity : CAP,
+                            shortTermMem : STMEM,
+                            longTermMem : (G : INFO1 |> == PARAM => ACT >| NEWSTM) ; LTMEM,
+                            commitment : free >
+        < TS : System | inProgress : PROG >
+    =>
+        < H : Human | cognition : CO >
+        < CO : Cognition | commitment : < TS, (G : INFO1 |> == PARAM => ACT >| NEWSTM) > >
+        < TS : System | >
+    if noPendingProgress(PROG) /\ established(G,STMEM) /\ enabling(INFO1,STMEM)
+        /\ CL + load(STMEM) <= CAP .
+
+    --- If the cognition does not need to interact with LTS for internal evolution
+    crl [INTERNAL_EVOLUTION_COMMIT] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                            stmCapacity : CAP,
+                            shortTermMem : STMEM,
+                            longTermMem : (G : INFO1 |> == PARAM => >| NEWSTM) ; LTMEM,
+                            commitment : free >
+    =>
+        < H : Human | cognition : CO >
+        < CO : Cognition | commitment : < CO, (G : INFO1 |> == PARAM => >| NEWSTM) > >
+     if established(G,STMEM) /\ enabling(INFO1,STMEM)
+         /\ CL + load(STMEM) <= CAP /\ updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM) =/= STMEM .
+    
+    --- Activating LTM rules when timer for the rule finishes
+
+    crl [EXTERNAL_SYNCHRONIZATION_PERFORM] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >
+        < TS : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+                        inProgress : free,
+                        transitions : (INFO3 [ INV1 ] -- EV2 / PARAM' -> INFO4 [ INV2 ] MSGS) ; TRANS >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           commitment : free >
+        < TS : System | inProgress : (INFO3 [ INV1 ] -- EV2 / PARAM' -> INFO4 [ INV2 ] MSGS) >
+    if extSynch(ACT,EV2) /\ timeElapsed(PARAM) .
+
+    crl [EXTERNAL_SYNCHRONIZATION_BUSY] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                           stmCapacity : CAP,
+                           shortTermMem : STMEM,
+                           commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >
+        < TS : System | inProgress : LTSRULE >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           commitment : free >
+        < TS : System | >
+    if timeElapsed(PARAM) .
+
+    crl [PERCEPTION_PERFORM] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                        stmCapacity : CAP,
+                        shortTermMem : STMEM,
+                        commitment : < TS, (G : INFO1 |> PERC == PARAM => >| NEWSTM) > >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM),
+                            commitment : free >
+    if timeElapsed(PARAM) .
+
+    --- If the cognition does not need to interact with LTS for internal evolution
+    crl [INTERNAL_EVOLUTION_PERFORM] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                            stmCapacity : CAP,
+                            shortTermMem : STMEM,
+                            commitment : < TS, (G : INFO1 |> == PARAM => >| NEWSTM) > >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : updateWithoutGoal(CL,CAP,G,INFO1,STMEM,NEWSTM),
+                            commitment : free >
+    if timeElapsed(PARAM) .
+    
+    crl [ACTION_PERFORM] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                            stmCapacity : CAP,
+                            shortTermMem : STMEM,
+                            commitment : < TS, (G : INFO1 |> == PARAM => ACT >| NEWSTM) > >
+        < TS : System | currentState : INFO3, INFO5 [ INV1 , INV3 ],
+                        inProgress : free,
+                        transitions : (INFO3 [ INV1 ] -- EV2 / PARAM' -> INFO4 [ INV2 ] MSGS) ; TRANS >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           commitment : free >
+        < TS : System | inProgress : (INFO3 [ INV1 ] -- EV2 / PARAM' -> INFO4 [ INV2 ] MSGS) >
+    if extSynch(ACT,EV2) /\ timeElapsed(PARAM) .
+
+    crl [ACTION_BUSY] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | cognitiveLoad : CL,
+                            stmCapacity : CAP,
+                            shortTermMem : STMEM,
+                            commitment : < TS, (G : INFO1 |> == PARAM => ACT >| NEWSTM) > >
+        < TS : System | inProgress : LTSRULE >
+    =>
+        < H : Human | >
+        < CO : Cognition | shortTermMem : update(CL,CAP,G,INFO1,STMEM,NEWSTM,ACT),
+                           commitment : free >
+        < TS : System | >
+    if timeElapsed(PARAM) .
+
+    --- Cancel rules if the perception does not fit anymore
+    crl [EXTERNAL_SYNCHRONIZATION_CANCEL] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => ACT >| NEWSTM) > >
+        < TS : System | currentState : INFO3 [ INV1 ] >
+    =>
+        < H : Human | >
+        < CO : Cognition | commitment : free >
+        < TS : System | >
+    if cancellable(PARAM) /\ not timeElapsed(PARAM) /\ not PERC in INFO3 .
+
+    crl [PERCEPTION_CANCEL] :
+        < H : Human | cognition : CO >
+        < CO : Cognition | commitment : < TS, (G : INFO1 |> PERC == PARAM => >| NEWSTM) > >
+        < TS : System | currentState : INFO3 [ INV1 ] >
+    =>
+        < H : Human | >
+        < CO : Cognition | commitment : free >
+        < TS : System | >
+    if cancellable(PARAM) /\ not timeElapsed(PARAM) /\ not PERC in INFO3 .
+
+endtom)
+
+(tomod TIMED-ENVIRONMENTS is 
+    protecting TIMED-EVOLUTION .
+
+    op `[_`] : Configuration -> NEConfiguration [ctor] .
+    op out : Msg -> Msg [ctor] .
+    op for : Oid Msg -> Msg [ctor msg] .
+
+    vars C C' : Configuration .
+    vars T T' : Time .
+    vars O O' : Oid .
+    var MSG : Msg .
+
+    eq delta([C], T) = [ delta(C, T) ] .
+    eq mte([C]) = mte(C) .
+
+    eq delta(out(MSG), T) = out(delta(MSG, T)) .
+    eq mte(out(MSG)) = 0 .
+
+    eq delta(for(O, MSG), T) = for(O, delta(MSG, T)) .
+    eq mte(for(O, MSG)) = 0 .
+
+    rl [MESSAGE-ESCAPE] :
+        [ out(MSG) C ]
+    =>
+        MSG [ C ]
+    .
+
+    rl [MESSAGE-INTRODUCE] :
+        for(O, MSG) [ < O : System | > C ]
+    =>
+        [ < O : System | > MSG C ]
+    .
+endtom)
+
+(tomod TIMED-PARAMETERS is
+    including TIMED-EVOLUTION .
+
+    op noParam : -> Parameter [ctor] .
+    subsort Nat < Parameter .
+
+    vars N N' : Nat .
+    var T : Time .
+    var PARAM : Parameter .
+
+    
+    eq cancellable(N) = false .
+    eq mte(N) = N .
+    eq delta(N, T) = N monus T .
+    eq timeElapsed(N) = N == 0 .
+    
+    op `[_`,_`] : Nat Nat -> Parameter [ctor] .
+
+    eq cancellable([ N, N' ]) = false .
+    eq timeElapsed([ N, N' ]) = N == 0 .
+    eq mte([ N, N' ]) = N' .
+    eq delta([ N, N' ], T) = [ N monus T, N' monus T ] .
+
+    eq timeElapsed(noParam) = true .
+    eq cancellable(noParam) = false .
+    eq mte(noParam) = 0 .
+    eq delta(noParam, T) = noParam .
+endtom)
+
+(tomod TIMED-BRDL is
+    including TIMED-PARAMETERS .
+    including TIMED-ENVIRONMENTS .
+
+    subsort String < Oid .
+
+    var STR : String .
+
+    
+endtom)
+
+(set tick max def 1 .)
