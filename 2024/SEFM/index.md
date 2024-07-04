@@ -30,6 +30,7 @@ Human-computer Interaction; Human Cognition; Model Checking; Maude Rewrite Syste
 ### Maude Code
 **GitHub repository:**
 * [https://github.com/CIFMA/cifma.github.io/blob/master/index.html](https://github.com/AntonioCerone/Publications/tree/master/2024/SEFM)
+
 **Download:**
 * [entities.maude](entities.maude)
 * [example-registration-lts.maude](example-registration-lts.maude)
