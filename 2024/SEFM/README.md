@@ -17,4 +17,4 @@
    
 5. Load the example
 
-   **maude> load example-vending.maude**
+   **maude> load example-registration-lts.maude**
