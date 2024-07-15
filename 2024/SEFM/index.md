@@ -32,7 +32,7 @@ Human-computer Interaction; Human Cognition; Model Checking; Maude Rewrite Syste
 * [https://github.com/CIFMA/cifma.github.io/blob/master/index.html](https://github.com/AntonioCerone/Publications/tree/master/2024/SEFM)
 
 **Download:**
-* [README.md](RADME.md)
+* [README.md](README.md)
 * [entities.maude](entities.maude)
 * [example-registration-lts.maude](example-registration-lts.maude)
 * [timed-evolution.maude](timed-evolution.maude)
