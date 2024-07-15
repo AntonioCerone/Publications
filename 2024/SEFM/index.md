@@ -37,7 +37,7 @@ Human-computer Interaction; Human Cognition; Model Checking; Maude Rewrite Syste
 * [example-registration-lts.maude](example-registration-lts.maude)
 * [timed-evolution.maude](timed-evolution.maude)
 
-### To run the code
+### To Run the Code
 
 1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
 
