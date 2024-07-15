@@ -11,6 +11,7 @@ Download and run Maude
 3. Start the Maude system. The following prompt should appear:
 
    maude>
+
 4. Start Real-Time Maude:
    
    maude> load real-time-maude
