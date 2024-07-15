@@ -36,7 +36,7 @@ Cognitive Modelling; Rewriting Logic; Maude; Theories of Motivation.
 * [prelude.maude](prelude.maude)
 * [untimed-evolution.maude](untimed-evolution.maude)
 
-### To run the code
+### To Run the Code
 
 1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
 
