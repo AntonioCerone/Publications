@@ -1,4 +1,4 @@
-Download and run Maude
+To run the code
 
 1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
    (Real-Time Maude does not work with Maude 3)
