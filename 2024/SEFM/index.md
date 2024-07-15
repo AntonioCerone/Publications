@@ -1,5 +1,5 @@
 ---
-title: SEFM 2024
+title: Formal Modelling and Verification of Multy-party Human-computer Interaction
 summary: Submitted conference paper information, including abstract, keywords and links to the code.
 authors:
     - Antonio Cerone
@@ -37,7 +37,7 @@ Human-computer Interaction; Human Cognition; Model Checking; Maude Rewrite Syste
 * [example-registration-lts.maude](example-registration-lts.maude)
 * [timed-evolution.maude](timed-evolution.maude)
 
-### Download and run Maude
+### To run the code
 
 1. Download and install Maude 2.7.1 from: https://maude.cs.illinois.edu/wiki/The_Maude_System
 
