@@ -1,5 +1,4 @@
-**[Antonio Cerone](https://antoniocerone.github.io)'s**
-# Publications
+# [Antonio Cerone](https://antoniocerone.github.io)'s Publications
 
 ## 2024 ##
 * Antonio Cerone, **[Multifaceted Formal Methods and their Interdisciplinary Role - from the Cathedral of `Components as Coalgebras'
