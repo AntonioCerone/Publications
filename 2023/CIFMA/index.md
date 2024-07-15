@@ -31,7 +31,7 @@ Cognitive Modelling; Rewriting Logic; Maude; Theories of Motivation.
 **Download:**
 * [README.txt](README.txt)
 * [entities.maude](entities.maude)
-* [load example-vending.maude](load example-vending.maude)
+* [example-vending.maude](example-vending.maude)
 * [generic-evolution.maude](generic-evolution.maude)
 * [prelude.maude](prelude.maude)
 * [untimed-evolution.maude](untimed-evolution.maude)
