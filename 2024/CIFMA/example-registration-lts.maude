@@ -1,0 +1,146 @@
+load real-time-maude.maude
+load timed-evolution.maude
+
+(tomod REGISTRATION-EXAMPLE is
+   protecting TIMED-BRDL .
+
+   subsort String < Oid .
+
+   
+   var STR : String .
+
+   op check : String -> Msg [ctor] .
+   ops available unavailable : -> Msg [ctor] .
+   op register : -> Msg [ctor] .
+   op loadLabs : String -> Msg [ctor] .
+   ops labsLoaded labsFailed : -> Msg [ctor] .
+   op labChosen : -> Msg [ctor] .
+
+   op userWebsite : String -> Oid [ctor] .
+   
+   op website : String -> Configuration .
+   eq website(STR) = 
+   < userWebsite(STR) : System | inProgress : free,
+                                currentState : "empty page" [ noInfo ],
+                                transitions : (
+                                 ("empty page" [ noInfo ] -- "refresh" / 0 -> "waiting" [ noInfo ] out(check(STR)));
+                                 ("waiting" [ noInfo ] -- # available / 0 -> "available" [ noInfo ] none);
+                                 ("waiting" [ noInfo ] -- # unavailable / 0 -> "unavailable" [ noInfo ] none);
+                                 ("available" [ noInfo ] -- "register" / 0 -> "success" [ "labs not loaded" ] out(register));
+                                 ("success" [ "labs not loaded" ] -- "proceed" / 0 -> "success" [ "loading labs" ] out(loadLabs(STR)));
+                                 ("success" [ "loading labs" ] -- # labsFailed / 0 -> "success" [ "labs not loaded" ] none);
+                                 ("success" [ "loading labs" ] -- # labsLoaded / 0 -> "choose lab" [ noInfo ] none);
+                                 ("choose lab" [ noInfo ] -- "proceed" / 0 -> "no lab" [ noInfo ] none);
+                                 ("choose lab" [ noInfo ] -- "register lab" / 0 -> "lab registered" [ noInfo ] out(labChosen))
+                                ) > .
+   
+   op server : -> Configuration .
+   eq server = 
+      < "server" : System | inProgress : free,
+                            currentState : noInfo [ "available" ],
+                            transitions : (
+                              (noInfo [ "available" ] -- # check("1") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("1"), available));
+                              (noInfo [ "available" ] -- # check("2") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("2"), available));
+                              (noInfo [ "available" ] -- # check("3") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("3"), available));
+                              (noInfo [ "available" ] -- # check("4") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("4"), available));
+                              (noInfo [ "available" ] -- # check("5") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("5"), available));
+                              (noInfo [ "available" ] -- # check("6") /[ 10, 1000 ] ->  noInfo [ "available" ] for(userWebsite("6"), available));
+
+                              (noInfo [ "unavailable" ] -- # check("1") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("1"), unavailable));
+                              (noInfo [ "unavailable" ] -- # check("2") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("2"), unavailable));
+                              (noInfo [ "unavailable" ] -- # check("3") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("3"), unavailable));
+                              (noInfo [ "unavailable" ] -- # check("4") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("4"), unavailable));
+                              (noInfo [ "unavailable" ] -- # check("5") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("5"), unavailable));
+                              (noInfo [ "unavailable" ] -- # check("6") /[ 10, 1000 ] ->  noInfo [ "unavailable" ] for(userWebsite("6"), unavailable));
+                              
+                              (noInfo [ noInfo ] -- # loadLabs("1") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("1"), labsLoaded));
+                              (noInfo [ noInfo ] -- # loadLabs("2") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("2"), labsLoaded));
+                              (noInfo [ noInfo ] -- # loadLabs("3") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("3"), labsLoaded));
+                              (noInfo [ noInfo ] -- # loadLabs("4") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("4"), labsLoaded));
+                              (noInfo [ noInfo ] -- # loadLabs("5") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("5"), labsLoaded));
+                              (noInfo [ noInfo ] -- # loadLabs("6") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("6"), labsLoaded));
+
+                              (noInfo [ noInfo ] -- # loadLabs("1") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("1"), labsFailed));
+                              (noInfo [ noInfo ] -- # loadLabs("2") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("2"), labsFailed));
+                              (noInfo [ noInfo ] -- # loadLabs("3") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("3"), labsFailed));
+                              (noInfo [ noInfo ] -- # loadLabs("4") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("4"), labsFailed));
+                              (noInfo [ noInfo ] -- # loadLabs("5") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("5"), labsFailed));
+                              (noInfo [ noInfo ] -- # loadLabs("6") /[ 10, 1000 ] ->  noInfo [ noInfo ] for(userWebsite("6"), labsFailed));
+
+                              (noInfo [ "available" ] -- # register /[ 10, 1000 ] ->  noInfo [ "unavailable" ] none);
+                              (noInfo [ "unavailable" ] -- # register /[ 10, 1000 ] ->  noInfo [ "unavailable" ] none);
+
+                              (noInfo [ noInfo ] -- # labChosen /[ 10, 1000 ] ->  noInfo [ "lab registered" ] none)
+                            ) > .
+
+   
+   op user : String -> Object .
+   eq user(STR) = 
+      < "user" + STR : Human | cognition : "cogn" + STR,
+                              physiology : "phys" + STR >
+      < "cogn" + STR : Cognition | cognitiveLoad : 0,
+                                 stmCapacity : 7,
+                                 commitment : free,
+                                 shortTermMem : (
+                                    (goal("registered") with noAdd);
+                                    (goal("register lab") with noAdd)),
+                                 longTermMem : 
+         (
+            (goal("registered") : noInfo |> "empty page" == noParam => "refresh" >| noInfo);
+            (goal("registered") : noInfo |> "available" == noParam => "register" >| noInfo) ;
+            (goal("registered") : noInfo |> "success" == noParam => >| "registered") ;
+            (goal("register lab") : "registered" |> "success" == [0, 2] => "proceed" >| "registered") ;
+            (goal("register lab") : noInfo |> "choose lab" == [0, 2] => "register lab" >| noInfo)
+         )
+      > .
+   
+   
+endtom)
+
+
+--- we check if two users think that they have registered, although there is only one
+--- place available
+---(tsearch [1] (
+   server 
+   [ website("1") user("1") ] 
+   [ website("2") user("2") ] 
+   --- [ website("3") user("3") ] 
+   --- [ website("4") user("4") ] 
+   --- [ website("5") user("5") ] 
+   --- [ website("6") user("6") ] 
+) 
+=>*
+   (
+   [ 
+      C':Configuration 
+      < O:Oid : Cognition | shortTermMem : (("registered" with noAdd); MEM:STM) >
+   ]
+   [ 
+      C'':Configuration 
+      < O':Oid : Cognition | shortTermMem : (("registered" with noAdd); MEM':STM) >
+   ]
+C:Configuration) in time < 100 .)
+
+
+--- check if it possible for user to skip registration of a lab
+(tsearch [1] {
+   [
+      website("1")
+      user("1")
+   ]
+   server
+}
+=>* {
+   [ 
+      C':Configuration 
+      < O':Oid : System | 
+         currentState : (INFO:Information, "no lab" [ INV:Information ]) 
+      >
+   ]
+C:Configuration
+} in time < 10000 .)
+
+
+
+--- (trew { (server [ website("1") user("1") ]) } in time < 10  .)
+q

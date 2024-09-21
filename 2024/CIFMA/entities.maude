@@ -1,0 +1,187 @@
+
+(fmod ENTITIES is
+
+   protecting STRING .
+
+   sorts InfoItem Goal Information ContentSTM Parameter .
+   subsort String < InfoItem < Information .
+   subsorts InfoItem Goal < ContentSTM .
+--- ContentSTM is the content of STM, which includes items of type Information and Goal
+
+   sort ContentSTMList .
+   subsort ContentSTM < ContentSTMList .
+   subsort Information < ContentSTMList .
+
+--- Information is a set of InfoItem that can be
+--- * items in STM;
+--- * perceptions;
+--- * actions/events.
+   op noInfo : -> Information [ctor] .
+   op _`,_ : Information Information -> Information [ctor comm assoc id: noInfo prec 10] .
+
+   op _`,_ : ContentSTMList ContentSTMList -> ContentSTMList [ditto] .
+   
+--- Goal refers to achievement adpressed by the parameter of type Information
+   op noGoal : -> Goal [ctor] .
+   op goal : InfoItem -> Goal [ctor] .
+   op goalFromAnyOf : Information -> Goal [ctor] .
+
+   sorts CognitiveRule SystemRule .
+
+   op _:_|>_==_=>_>|_ : Goal Information InfoItem Parameter InfoItem ContentSTMList
+                          -> CognitiveRule [ctor] .
+
+   op _:_|>`==_=>_>|_ : Goal Information Parameter InfoItem ContentSTMList
+                          -> CognitiveRule [ctor] .
+
+   op _:_|>_==_=>`>|_ : Goal Information InfoItem Parameter ContentSTMList
+                          -> CognitiveRule [ctor] .
+                          
+   op _:_|>`==_=>`>|_ : Goal Information Parameter ContentSTMList
+                          -> CognitiveRule [ctor] .
+
+   op _:_|_==_=>_>|_ : Goal Information InfoItem Parameter InfoItem ContentSTMList
+                          -> CognitiveRule .
+
+   var G : Goal .
+   vars INFO1 INFO2 INFO3 INFO4 INV1 INV2 : Information .
+   var NEWSTM : ContentSTMList .
+   vars PERC ACT : InfoItem .
+   var PARAM : Parameter .
+
+   eq G : INFO1 | PERC == PARAM => ACT >| NEWSTM =
+      G : INFO1 |> PERC == PARAM => ACT >| INFO1 , NEWSTM .                    
+   
+   sorts Event Invisible SystemState .
+   subsort InfoItem < Event .
+
+   op |>_ : ContentSTM -> Event [ctor prec 11 gather (e)] .
+   op |>_>| : ContentSTM -> Event [ctor prec 12] .
+   op _>| : ContentSTM -> Event [ctor prec 11 gather (e)] .
+
+   op `[_`] : Information -> Invisible [ctor] .
+   op __ : Information Invisible -> SystemState [ctor] .
+
+   --- changed the type of operator from Conginitve Rule to SystemRule.
+   --- according to the paper it is a part of a system
+   op __--_->__ : Information Invisible Event Information Invisible
+                          -> SystemRule [ctor] .
+
+   op extSynch : InfoItem InfoItem -> Bool .
+
+   vars S1 S2 : String .
+
+   eq extSynch(S1,S2) = S1 == S2 .
+   	
+endfm)
+
+(view CognitiveRule from TRIV to ENTITIES is
+   sort Elt to CognitiveRule .
+endv)
+
+--- modules for Core Maude break the execution of meta interpreter for Object Maude.
+--- we need to start the meta interpreter again.
+--- select REAL-TIME-MAUDE .
+--- loop init .
+
+--- modules containing class definitions are inputs to Object Maude
+--- its enclosed with parentheses and denoted as omod
+(omod COGNITION is
+   protecting ENTITIES .
+   protecting NAT .
+
+   op chunk : Information -> InfoItem [ctor] .
+
+   sorts AddInfo ItemSTM STM .
+   subsort ItemSTM < STM .
+
+   op noAdd : -> AddInfo [ctor] . --- additional information, e.g. timing
+   op _with_ : ContentSTM AddInfo -> ItemSTM [ctor] .
+   
+
+   op emptySTM : -> STM [ctor] .
+   op _;_ : STM STM -> STM [ctor comm assoc id: emptySTM] .
+
+   op established : Goal STM -> Bool .
+
+   var G G1 G2 : Goal .
+   var A : AddInfo .
+   var MEM : STM .
+   var I : InfoItem .
+
+   eq established(noGoal, MEM) = true .
+   ceq established(G, emptySTM) = false if G =/= noGoal .
+   eq established(G1, ((G2 with A) ; MEM)) = if G1 == G2 then true
+                                          else established(G1, MEM) fi .
+                                          
+   eq established(G, ((I with A) ; MEM)) = established(G, MEM) .
+
+
+   op enabling : Information STM -> Bool .
+
+   var ITEM : InfoItem .
+   var INFO : Information .
+
+   eq enabling(noInfo, MEM) = true .
+   ceq enabling(INFO, emptySTM) = false if INFO =/= noInfo .
+   eq enabling((ITEM , INFO),  (ITEM with A) ; MEM) = enabling(INFO, MEM) .
+
+   sort LTM .
+   subsort CognitiveRule < LTM .
+   
+   op emptyLTM : -> LTM [ctor] .
+   op _;_ : LTM LTM -> LTM [ctor comm assoc id: emptyLTM format (d d nit d)] .
+
+   sort Commitment .
+   op <_`,_> : Oid CognitiveRule -> Commitment [ctor] .
+   op free : -> Commitment [ctor] .
+
+   class Cognition | cognitiveLoad : Nat,
+                     stmCapacity : Nat,
+                     shortTermMem : STM,
+                     longTermMem :  LTM,
+                     commitment : Commitment .
+
+endom)
+
+
+(tomod LTS is
+    protecting ENTITIES .
+    
+    sort LTS .
+    subsort SystemRule < LTS .
+
+    sort InProgress .
+    subsort SystemRule < InProgress .
+    
+    op #_ : Msg -> Event [ctor] .
+
+    op free : -> InProgress [ctor] .
+    
+    --- changed the type of operator from Conginitve Rule to SystemRule.
+    --- according to the paper it is a part of a system
+    op __--_/_->___ : Information Invisible Event Parameter Information Invisible MsgConfiguration
+                          -> SystemRule [ctor] .
+
+    mb none : MsgConfiguration .
+
+    op emptyLTS : -> LTS [ctor] .
+    op _;_ : LTS LTS -> LTS [ctor comm assoc id: emptyLTS] .    
+
+
+    class System | currentState : SystemState,
+                   transitions :  LTS,
+                   inProgress : InProgress .
+
+endtom)
+
+--- sort Oid is defined in CONFIGURATION
+(omod HUMAN is
+    protecting COGNITION .
+    protecting LTS .
+    protecting CONFIGURATION .
+
+    class Human | cognition : Oid,
+                  physiology : Oid .
+
+endom)
